@@ -11,8 +11,8 @@ global eval_subset_size
 eval_subset_size = 25
 global adv_dict_size 
 # adv_dict_size= 300
-adv_dict_size= 10
-beam_size = 10
+adv_dict_size= 500
+beam_size = 4
 if beam_size<adv_dict_size:
     beam_size = adv_dict_size
 import random
@@ -89,6 +89,7 @@ def generate_adv_examples(eval_args, dataset, desired_string_size, adv_vocab, be
         scenarios = sorted(new_scenarios, key = lambda x: x[1])
         if len(scenarios)>beam_size:
             scenarios = scenarios[0:beam_size] # check if need reverse=True
+        write_adv_text(scenarios)
     return scenarios
 
 def add_adv_text_per_question(example, dictionary_mapping_example_to_index):
@@ -287,7 +288,7 @@ def main():
             trainer_class = QuestionAnsweringTrainer
             # arguments passed in that are necessary to test datasets with modified 'context' (where a certain adv example is appended to all 'context' in the modified dataset)
             eval_args = [eval_kwargs, model, training_args, train_dataset_featurized, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset,trainer_class]
-            adv_examples = generate_adv_examples(eval_args, eval_dataset, 5, adversarial_words, beam_size)
+            adv_examples = generate_adv_examples(eval_args, eval_dataset, 12, adversarial_words, beam_size)
             write_adv_text(adv_examples)
         else:
             results = trainer.evaluate(**eval_kwargs)
