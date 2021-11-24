@@ -7,8 +7,25 @@ import os
 import json
 from generate_adv_examples import *
 import time 
+global eval_subset_size
+eval_subset_size = 25
+global adv_dict_size 
+# adv_dict_size= 300
+adv_dict_size= 1
+beam_size = 10
+if beam_size<adv_dict_size:
+    beam_size = adv_dict_size
+import random
 
 NUM_PREPROCESSING_WORKERS = 2
+def write_adv_text(adv_examples):
+    file1 = open("generated_adv_words.txt", "a")  # append mode
+    for example in adv_examples:
+        file1.write(example +"\n")
+    file1.close()
+def replace_context_with_adv_text(example, adversarial_text):
+    example['context'] = adversarial_text
+    return example
 def add_adversarial_text(example, adversarial_text):
     example['context'] = example['context'] + adversarial_text
     return example
@@ -19,8 +36,7 @@ def calc_attack_score(eval_args, dataset, string):
     # run model against subset of eval examples
     # return score as a function of (or copy of) exact match or avg f1 score
     t1 = time.time()
-    # modified_dataset = dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": string})
-    modified_dataset = dataset # TODO: revert back to line above once we get the result scores to be accurate
+    modified_dataset = dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": string})
     eval_kwargs = {} 
     eval_kwargs['eval_examples'] = modified_dataset
     t2=time.time()
@@ -57,20 +73,22 @@ def calc_attack_score(eval_args, dataset, string):
 def generate_adv_examples(eval_args, dataset, desired_string_size, adv_vocab, beam_size):
     # scenarios = [[x] for x in adv_vocab]
     # scenarios starts for first itr starts out as size of adv_vocab, but every other iteration is size of beam
-    scenarios = ["" for x in adv_vocab]
+    scenarios = [("",0)] # for x in adv_vocab
     # add string to each item in scenarios
     for i in range(desired_string_size):
+        new_scenarios = [] # contains (adv_text, attack_score) pairs
         for potential_word in adv_vocab:
-            new_scenarios = [] # contains (adv_text, attack_score) pairs
             for scenario in scenarios:
+                # initial condition
                 if scenario == "":
                     adv_text = potential_word
                 else:
-                    adv_text = scenario + " "+ potential_word
-                
+                    adv_text = scenario[0] + " "+ potential_word
                 attack_score = calc_attack_score(eval_args, dataset, adv_text)
                 new_scenarios.append((adv_text, attack_score))
-            scenarios = new_scenarios.sort(key = lambda x: x[1], reverse = True)[0:beam_size] # check if need reverse=True
+        scenarios = sorted(new_scenarios, key = lambda x: x[1])
+        if len(scenarios)>beam_size:
+            scenarios = scenarios[0:beam_size] # check if need reverse=True
     return scenarios
 
 def add_adv_text_per_question(example, dictionary_mapping_example_to_index):
@@ -103,7 +121,7 @@ def main():
     #     *This argument is required*.
 
     argp.add_argument('--model', type=str,
-                      default='google/electra-small-discriminator',
+                      default='trained_model/checkpoint-32500',
                       help="""This argument specifies the base model to fine-tune.
         This should either be a HuggingFace model ID (see https://huggingface.co/models)
         or a path to a saved model checkpoint (a folder containing config.json and pytorch_model.bin).""")
@@ -223,10 +241,11 @@ def main():
         metric = datasets.load_metric('squad')
         if args.gen_adv_examples:
             # makes the eval dataset only of length 100 when gen_adv_examples
-            eval_dataset = eval_dataset.select(range(100))
+            eval_dataset = eval_dataset.select(range(eval_subset_size))
             # for adv_example in adv_examples:
-            beam_size = 10
+            
             adversarial_words = set(get_common_words() + get_adv_words(100)) 
+            adversarial_words= random.sample(adversarial_words, adv_dict_size)
         else:
             compute_metrics = lambda eval_preds: metric.compute(
                 predictions=eval_preds.predictions, references=eval_preds.label_ids)
@@ -269,7 +288,7 @@ def main():
             # arguments passed in that are necessary to test datasets with modified 'context' (where a certain adv example is appended to all 'context' in the modified dataset)
             eval_args = [eval_kwargs, model, training_args, train_dataset_featurized, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset,trainer_class]
             adv_examples = generate_adv_examples(eval_args, eval_dataset, 5, adversarial_words, beam_size)
-            # TODO: Store generated adv_examples into file
+            write_adv_text(adv_examples)
         else:
             results = trainer.evaluate(**eval_kwargs)
 
@@ -280,29 +299,29 @@ def main():
         # If you do this your custom prediction_step should probably start by calling super().prediction_step and modifying the
         # values that it returns.
 
-        print('Evaluation results:')
-        print(results)
+        # print('Evaluation results:')
+        # print(results)
 
-        os.makedirs(training_args.output_dir, exist_ok=True)
+        # os.makedirs(training_args.output_dir, exist_ok=True)
 
-        with open(os.path.join(training_args.output_dir, 'eval_metrics.json'), encoding='utf-8', mode='w') as f:
-            json.dump(results, f)
+        # with open(os.path.join(training_args.output_dir, 'eval_metrics.json'), encoding='utf-8', mode='w') as f:
+        #     json.dump(results, f)
 
-        with open(os.path.join(training_args.output_dir, 'eval_predictions.jsonl'), encoding='utf-8', mode='w') as f:
-            if args.task == 'qa':
-                predictions_by_id = {pred['id']: pred['prediction_text'] for pred in eval_predictions.predictions}
-                for example in eval_dataset:
-                    example_with_prediction = dict(example)
-                    example_with_prediction['predicted_answer'] = predictions_by_id[example['id']]
-                    f.write(json.dumps(example_with_prediction))
-                    f.write('\n')
-            else:
-                for i, example in enumerate(eval_dataset):
-                    example_with_prediction = dict(example)
-                    example_with_prediction['predicted_scores'] = eval_predictions.predictions[i].tolist()
-                    example_with_prediction['predicted_label'] = int(eval_predictions.predictions[i].argmax())
-                    f.write(json.dumps(example_with_prediction))
-                    f.write('\n')
+        # with open(os.path.join(training_args.output_dir, 'eval_predictions.jsonl'), encoding='utf-8', mode='w') as f:
+        #     if args.task == 'qa':
+        #         predictions_by_id = {pred['id']: pred['prediction_text'] for pred in eval_predictions.predictions}
+        #         for example in eval_dataset:
+        #             example_with_prediction = dict(example)
+        #             example_with_prediction['predicted_answer'] = predictions_by_id[example['id']]
+        #             f.write(json.dumps(example_with_prediction))
+        #             f.write('\n')
+        #     else:
+        #         for i, example in enumerate(eval_dataset):
+        #             example_with_prediction = dict(example)
+        #             example_with_prediction['predicted_scores'] = eval_predictions.predictions[i].tolist()
+        #             example_with_prediction['predicted_label'] = int(eval_predictions.predictions[i].argmax())
+        #             f.write(json.dumps(example_with_prediction))
+        #             f.write('\n')
 
 
 if __name__ == "__main__":
