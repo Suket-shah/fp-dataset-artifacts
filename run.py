@@ -18,16 +18,21 @@ def calc_attack_score(eval_args, dataset, string):
     eval_kwargs, model, training_args, train_dataset_featurized, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset, trainer_class= eval_args[0], eval_args[1], eval_args[2], eval_args[3], eval_args[4], eval_args[5], eval_args[6], eval_args[7]
     # run model against subset of eval examples
     # return score as a function of (or copy of) exact match or avg f1 score
-
-    modified_dataset = dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": string})
+    t1 = time.time()
+    # modified_dataset = dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": string})
+    modified_dataset = dataset # TODO: revert back to line above once we get the result scores to be accurate
+    eval_kwargs = {} 
+    eval_kwargs['eval_examples'] = modified_dataset
+    t2=time.time()
+    print("Mapping modify time %d", t2-t1)
     modified_eval_dataset_featurized = modified_dataset.map(
             prepare_eval_dataset,
             batched=True,
             num_proc=NUM_PREPROCESSING_WORKERS,
             remove_columns=modified_dataset.column_names
         ) 
-    
-    # metric = datasets.load_metric('squad')
+    t3 = time.time()
+    print("Map featurize time %d", t3-t2)
     trainer = trainer_class(
     model= model,
     args=training_args,
@@ -35,19 +40,24 @@ def calc_attack_score(eval_args, dataset, string):
     eval_dataset=modified_eval_dataset_featurized,
     tokenizer=tokenizer,
     compute_metrics=compute_metrics_and_store_predictions
-    ) # TODO check parameters like if args is training_args
+    ) 
+    # NOTE: train_dataset_featurized is None  while it probably should not be
+    # # TODO check parameters like if args is training_args
         #TODO check if train_dataset_featurized needs to be sampled as well
-
+    t4 = time.time()
+    print("Trainer create time %d", t4-t3)
     results = trainer.evaluate(**eval_kwargs)
+    t5 = time.time()
+    print("Evaluation time %d", t5-t4)
     print('Evaluation results:')
     print(results)
 
-    raise NotImplementedError()
+    return results['eval_f1'] # TODO replace with cross entropy loss suket
 
 def generate_adv_examples(eval_args, dataset, desired_string_size, adv_vocab, beam_size):
     # scenarios = [[x] for x in adv_vocab]
     # scenarios starts for first itr starts out as size of adv_vocab, but every other iteration is size of beam
-    scenarios = ["" for x in range(adv_vocab)]
+    scenarios = ["" for x in adv_vocab]
     # add string to each item in scenarios
     for i in range(desired_string_size):
         for potential_word in adv_vocab:
@@ -112,6 +122,8 @@ def main():
                       help='Limit the number of examples to evaluate on.')
     argp.add_argument('--gen_adv_examples', type=bool, default=True,
                       help='Limit the number of examples to evaluate on.')
+    argp.add_argument('--use_subset_train_examples', type=bool, default=True,
+                        help='Limit the number of examples to train on.')
     training_args, args = argp.parse_args_into_dataclasses()
     # print('training_args: : ', training_args)
     # print('args: : ', args)
@@ -166,6 +178,8 @@ def main():
             num_proc=NUM_PREPROCESSING_WORKERS,
             remove_columns=train_dataset.column_names
         )
+    # if args.use_subset_train_examples:
+    #     train_dataset = train_dataset.select(range(100)) # TODO delete or use elsewhere
     if training_args.do_eval:
         eval_dataset = dataset[eval_split]
         # dataset_to_dictionary =  {}
@@ -216,7 +230,6 @@ def main():
         else:
             compute_metrics = lambda eval_preds: metric.compute(
                 predictions=eval_preds.predictions, references=eval_preds.label_ids)
-        print("debug")
     elif args.task == 'nli':
         compute_metrics = compute_accuracy
     
@@ -229,17 +242,18 @@ def main():
         eval_predictions = eval_preds
         return compute_metrics(eval_preds)
 
-    # Initialize the Trainer object with the specified arguments and the model and dataset we loaded above
-    trainer = trainer_class(
+    # # Initialize the Trainer object with the specified arguments and the model and dataset we loaded above
+
+    # Train and/or evaluate
+    if training_args.do_train:
+        trainer = trainer_class(
         model=model,
         args=training_args,
         train_dataset=train_dataset_featurized,
         eval_dataset=eval_dataset_featurized,
         tokenizer=tokenizer,
         compute_metrics=compute_metrics_and_store_predictions
-    )
-    # Train and/or evaluate
-    if training_args.do_train:
+        )
         trainer.train()
         trainer.save_model()
         # If you want to customize the way the loss is computed, you should subclass Trainer and override the "compute_loss"
