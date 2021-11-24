@@ -11,7 +11,7 @@ global eval_subset_size
 eval_subset_size = 25
 global adv_dict_size 
 # adv_dict_size= 300
-adv_dict_size= 1
+adv_dict_size= 10
 beam_size = 10
 if beam_size<adv_dict_size:
     beam_size = adv_dict_size
@@ -21,7 +21,7 @@ NUM_PREPROCESSING_WORKERS = 2
 def write_adv_text(adv_examples):
     file1 = open("generated_adv_words.txt", "a")  # append mode
     for example in adv_examples:
-        file1.write(example +"\n")
+        file1.write(str(example) +"\n")
     file1.close()
 def replace_context_with_adv_text(example, adversarial_text):
     example['context'] = adversarial_text
@@ -330,6 +330,3 @@ if __name__ == "__main__":
 def add_context(example, context_to_add):
     example['sentence1'] = 'My sentence: ' + example['sentence1']
     return example
-
-updated_dataset = dataset.map(add_context)
-updated_dataset['sentence1'][:5]
