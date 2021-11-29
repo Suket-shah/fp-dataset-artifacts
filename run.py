@@ -16,13 +16,98 @@ beam_size = 4
 if beam_size<adv_dict_size:
     beam_size = adv_dict_size
 import random
+import logging
+import copy
+import re
 
 NUM_PREPROCESSING_WORKERS = 2
+
 def write_adv_text(adv_examples):
     file1 = open("generated_adv_words.txt", "a")  # append mode
+    file1.write("\n")
     for example in adv_examples:
         file1.write(str(example) +"\n")
+    file1.write("\n")
     file1.close()
+
+def log_progress(adv_examples):
+    # TODO implement with logging library
+    return 0
+
+# TODO modify parameters
+# Need implement a function that returns the predicted answer with a specific universal trigger and target span added to context
+def make_prediction(example, universal_trigger_string, eval_args):
+    raise NotImplementedError()
+
+def calc_total_loss(universal_trigger_string, subset_of_examples, eval_args):
+    # return random.randrange(10)
+    total_loss = 0
+    for example in subset_of_examples:
+        paragraph = example['context']
+        target_span= example['answers'][0] # TODO use more than val at index 0 for answer
+        # target_index_start = example['answer_start'][0] 
+        # target_index_end = target_index_start + len(target_span)
+        prediction = make_prediction(example, universal_trigger_string, eval_args)
+        loss = calc_loss(universal_trigger_string, target_span, paragraph)
+        total_loss += loss
+    return total_loss
+
+def generate_universal_triggers(universal_trigger_len, all_possible_words, examples_to_test_against, beam_size, eval_args):
+    # scenarios = [("",0)] # for x in adv_vocab
+    scenarios = []
+    for i in range(universal_trigger_len):
+        if i==0:
+            universal_trigger_list = ["the" for x in range(universal_trigger_len)]
+            for word in all_possible_words:
+                universal_trigger_list[0] = word
+                universal_trigger_string = ' '.join(universal_trigger_list)
+                total_loss = calc_total_loss(universal_trigger_string, examples_to_test_against)
+                # TODO: ensure that list is being copied by value and not by memory reference OR might have to use copy python library
+                scenarios.append((copy.deepcopy(universal_trigger_list), total_loss))
+            scenarios.sort(key = lambda x: x[1])
+            # trim scenarios to length of beam size
+            if len(scenarios)>beam_size:
+                scenarios = scenarios[0:beam_size] # check if need reverse=True
+            write_adv_text(scenarios)
+        else:
+            # use beam search 
+            previous_k_best_universal_triggers_list = [scenarios[i][0] for i in range(len(scenarios))]
+            new_scenarios = []
+            for prev_word_seq in previous_k_best_universal_triggers_list:
+                for word in all_possible_words:
+                    prev_word_seq[i] = word
+                    universal_trigger_string = ' '.join(prev_word_seq)
+                    total_loss = calc_total_loss(universal_trigger_string, examples_to_test_against)
+                    # TODO: ensure that list is being copied by value and not by memory reference OR might have to use copy python library
+                    new_scenarios.append((copy.deepcopy(prev_word_seq), total_loss))
+                log_progress(scenarios)
+            scenarios = sorted(new_scenarios, key = lambda x: x[1])
+            # trim scenarios to length of beam size
+            if len(scenarios)>beam_size:
+                scenarios = scenarios[0:beam_size] # check if need reverse=True
+            write_adv_text(scenarios)
+
+
+def calc_loss(output_span, target_span, paragraph):
+    # return random.randrange(10)
+    # loss = torch.nn.CrossEntropyLoss()
+    first_output = output_span.split(' ')[0]
+    last_output = output_span.split(' ')[-1]
+    first_target = target_span.split(' ')[0]
+    last_target = target_span.split(' ')[-1]
+    output_start_index = re.search(r'\b({})\b'.format(first_output), paragraph).start()
+    output_end_index = re.search(r'\b({})\b'.format(last_output), paragraph).end()
+    target_start_index = re.search(r'\b({})\b'.format(first_target), paragraph).start() 
+    target_end_index = re.search(r'\b({})\b'.format(last_target), paragraph).start() 
+    print(output_start_index)
+    start_loss = target_start_index - output_start_index
+    end_loss = target_end_index - output_end_index
+    # TODO continue full implementation
+    return start_loss + end_loss
+
+    # raise NotImplementedError("Have Suket implement")
+
+
 def replace_context_with_adv_text(example, adversarial_text):
     example['context'] = adversarial_text
     return example
@@ -288,8 +373,12 @@ def main():
             trainer_class = QuestionAnsweringTrainer
             # arguments passed in that are necessary to test datasets with modified 'context' (where a certain adv example is appended to all 'context' in the modified dataset)
             eval_args = [eval_kwargs, model, training_args, train_dataset_featurized, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset,trainer_class]
-            adv_examples = generate_adv_examples(eval_args, eval_dataset, 12, adversarial_words, beam_size)
-            write_adv_text(adv_examples)
+            beam_size = 3
+            universal_trigger_len = 3
+            all_possible_words = ["why", "how", "when", "who", "because"]
+            generate_universal_triggers(universal_trigger_len, all_possible_words, eval_dataset, beam_size, eval_args)
+            # adv_examples = generate_adv_examples(eval_args, eval_dataset, 12, adversarial_words, beam_size)
+            # write_adv_text(adv_examples)
         else:
             results = trainer.evaluate(**eval_kwargs)
 
@@ -326,6 +415,8 @@ def main():
 
 
 if __name__ == "__main__":
+    # examples_fake_var = None
+    # generate_universal_triggers(4, ["why", "how", "when", "who", "because"], examples_fake_var, 3)
     main()
 
 def add_context(example, context_to_add):
