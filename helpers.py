@@ -35,6 +35,27 @@ def compute_accuracy(eval_preds: EvalPrediction):
             np.float32).mean().item()
     }
 
+def compute_distance_off(eval_preds: EvalPrediction):
+
+    # ids = [eval_preds.predictions[i]['id'] for i in range(len(eval_preds))]
+    # example_in_question = eval_dataset.filter(lambda example: example['id']=="56be4db0acb8001400a502ec")
+    # prev_answer = (np.argmax(
+    #         eval_preds.predictions,
+    #         axis=1) == eval_preds.label_ids).astype(
+            # np.float32).mean().item()
+    # return {
+    #     'CrossEntropyLoss': (np.argmax(
+    #         eval_preds.predictions,
+    #         axis=1) == eval_preds.label_ids).astype(
+    #         np.float32).mean().item()
+    # }
+    # predictions = [eval_preds.predictions[i]['prediction_text'] for i in range(len(eval_preds.predictions))]
+    # # TODO: 11-30-21 predictions is way too long: find out why of length 10570 because that is likely slowing down performance
+    # predictions_mean= np.mean(predictions)
+    # return {
+    #     'CrossEntropyLoss': predictions_mean
+    # }
+    raise NotImplementedError("Not implemented") # TODO suket: modify this method after you have changed eval_preds
 
 # This function preprocesses a question answering dataset, tokenizing the question and context text
 # and finding the right offsets for the answer spans in the tokenized context (to use as labels).
@@ -247,7 +268,8 @@ def postprocess_qa_predictions(examples,
             predictions.insert(0, {"text": "empty", "start_logit": 0.0,
                                    "end_logit": 0.0, "score": 0.0})
 
-        all_predictions[example["id"]] = predictions[0]["text"]
+        all_predictions[example["id"]] = predictions[0]["text"] # TODO include score to calculate the loss
+        # TODO suket: find out how to correctly send the score variables for all predictions. The code as is does not send "score"
     return all_predictions
 
 
@@ -286,6 +308,7 @@ class QuestionAnsweringTrainer(Trainer):
         if self.compute_metrics is not None:
             # post process the raw predictions to get the final prediction
             # (from start_logits, end_logits to an answer string)
+            # TODO have it return score as well
             eval_preds = postprocess_qa_predictions(eval_examples,
                                                     eval_dataset,
                                                     output.predictions)
@@ -311,4 +334,5 @@ class QuestionAnsweringTrainer(Trainer):
 
         self.control = self.callback_handler.on_evaluate(self.args, self.state,
                                                          self.control, metrics)
-        return metrics
+        # return the score as part of metrics
+        return metrics # TODO Suket: does this need to be modified?

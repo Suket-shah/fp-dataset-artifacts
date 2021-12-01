@@ -2,7 +2,7 @@ import datasets
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, \
     AutoModelForQuestionAnswering, Trainer, TrainingArguments, HfArgumentParser
 from helpers import prepare_dataset_nli, prepare_train_dataset_qa, \
-    prepare_validation_dataset_qa, QuestionAnsweringTrainer, compute_accuracy
+    prepare_validation_dataset_qa, QuestionAnsweringTrainer, compute_accuracy, compute_distance_off
 import os
 import json
 from generate_adv_examples import *
@@ -39,20 +39,46 @@ def log_progress(adv_examples):
 def make_prediction(example, universal_trigger_string, eval_args):
     raise NotImplementedError()
 
-def calc_total_loss(universal_trigger_string, subset_of_examples, eval_args):
-    # return random.randrange(10)
-    total_loss = 0
-    for example in subset_of_examples:
-        paragraph = example['context']
-        target_span= example['answers'][0] # TODO use more than val at index 0 for answer
-        # target_index_start = example['answer_start'][0] 
-        # target_index_end = target_index_start + len(target_span)
-        prediction = make_prediction(example, universal_trigger_string, eval_args)
-        loss = calc_loss(universal_trigger_string, target_span, paragraph)
-        total_loss += loss
+# def calc_total_loss(universal_trigger_string, subset_of_examples, eval_args):
+#     # return random.randrange(10)
+#     total_loss = 0
+#     for example in subset_of_examples:
+#         paragraph = example['context']
+#         target_span= example['answers'][0] # TODO use more than val at index 0 for answer
+#         # target_index_start = example['answer_start'][0] 
+#         # target_index_end = target_index_start + len(target_span)
+#         prediction = make_prediction(example, universal_trigger_string, eval_args)
+#         loss = calc_loss(universal_trigger_string, target_span, paragraph)
+#         total_loss += loss
+#     return total_loss
+
+def get_cross_entropy_loss(universal_trigger_string, trainer_args, eval_kwargs):
+    trainer_class, model, training_args, train_dataset_featurized, eval_dataset, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset = trainer_args
+    # STEP 1: modify eval dataset to include universal_trigger_string plus target span "To kill american people" with map method
+    adv_text = " " + universal_trigger_string + ". To kill american people."
+    modified_dataset = eval_dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": adv_text})
+    # Step 2: Create trainer with modified dataset that is featurized 
+    # Step 2A: featurize modified_dataset
+    modified_eval_dataset_featurized = modified_dataset.map(
+            prepare_eval_dataset,
+            batched=True,
+            num_proc=NUM_PREPROCESSING_WORKERS,
+            remove_columns=modified_dataset.column_names
+        ) 
+    trainer = trainer_class(
+    model= model,
+    args=training_args,
+    train_dataset=train_dataset_featurized,
+    eval_dataset=modified_eval_dataset_featurized,
+    tokenizer=tokenizer,
+    compute_metrics=compute_metrics_and_store_predictions
+    )
+    # Step 3: Call evaluate with correct kwargs
+    results = trainer.evaluate(**eval_kwargs)
+    total_loss = results['eval_CrossEntropyLoss'] #TODO: suket Check if the loss is being calculated correctly
     return total_loss
 
-def generate_universal_triggers(universal_trigger_len, all_possible_words, examples_to_test_against, beam_size, eval_args):
+def generate_universal_triggers(universal_trigger_len, all_possible_words, beam_size, trainer_args, eval_kwargs):
     # scenarios = [("",0)] # for x in adv_vocab
     scenarios = []
     for i in range(universal_trigger_len):
@@ -61,7 +87,8 @@ def generate_universal_triggers(universal_trigger_len, all_possible_words, examp
             for word in all_possible_words:
                 universal_trigger_list[0] = word
                 universal_trigger_string = ' '.join(universal_trigger_list)
-                total_loss = calc_total_loss(universal_trigger_string, examples_to_test_against)
+                # total_loss = calc_total_loss(universal_trigger_string, examples_to_test_against)
+                total_loss = get_cross_entropy_loss(universal_trigger_string, trainer_args, eval_kwargs) # TODO pass in necessary parameters
                 # TODO: ensure that list is being copied by value and not by memory reference OR might have to use copy python library
                 scenarios.append((copy.deepcopy(universal_trigger_list), total_loss))
             scenarios.sort(key = lambda x: x[1])
@@ -77,7 +104,8 @@ def generate_universal_triggers(universal_trigger_len, all_possible_words, examp
                 for word in all_possible_words:
                     prev_word_seq[i] = word
                     universal_trigger_string = ' '.join(prev_word_seq)
-                    total_loss = calc_total_loss(universal_trigger_string, examples_to_test_against)
+                    # total_loss = calc_total_loss(universal_trigger_string, examples_to_test_against)
+                    total_loss = get_cross_entropy_loss(universal_trigger_string, trainer_args, eval_kwargs)
                     # TODO: ensure that list is being copied by value and not by memory reference OR might have to use copy python library
                     new_scenarios.append((copy.deepcopy(prev_word_seq), total_loss))
                 log_progress(scenarios)
@@ -115,45 +143,45 @@ def add_adversarial_text(example, adversarial_text):
     example['context'] = example['context'] + adversarial_text
     return example
 
-# Incorrectly Implemented
-def calc_attack_score(eval_args, dataset, string):
-    eval_kwargs, model, training_args, train_dataset_featurized, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset, trainer_class= eval_args[0], eval_args[1], eval_args[2], eval_args[3], eval_args[4], eval_args[5], eval_args[6], eval_args[7]
-    # run model against subset of eval examples
-    # return score as a function of (or copy of) exact match or avg f1 score
-    t1 = time.time()
-    modified_dataset = dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": string})
-    eval_kwargs = {} 
-    eval_kwargs['eval_examples'] = modified_dataset
-    t2=time.time()
-    print("Mapping modify time %d", t2-t1)
-    modified_eval_dataset_featurized = modified_dataset.map(
-            prepare_eval_dataset,
-            batched=True,
-            num_proc=NUM_PREPROCESSING_WORKERS,
-            remove_columns=modified_dataset.column_names
-        ) 
-    t3 = time.time()
-    print("Map featurize time %d", t3-t2)
-    trainer = trainer_class(
-    model= model,
-    args=training_args,
-    train_dataset=train_dataset_featurized,
-    eval_dataset=modified_eval_dataset_featurized,
-    tokenizer=tokenizer,
-    compute_metrics=compute_metrics_and_store_predictions
-    ) 
-    # NOTE: train_dataset_featurized is None  while it probably should not be
-    # # TODO check parameters like if args is training_args
-        #TODO check if train_dataset_featurized needs to be sampled as well
-    t4 = time.time()
-    print("Trainer create time %d", t4-t3)
-    results = trainer.evaluate(**eval_kwargs)
-    t5 = time.time()
-    print("Evaluation time %d", t5-t4)
-    print('Evaluation results:')
-    print(results)
+# # Incorrectly Implemented
+# def calc_attack_score(eval_args, dataset, string):
+#     eval_kwargs, model, training_args, train_dataset_featurized, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset, trainer_class= eval_args[0], eval_args[1], eval_args[2], eval_args[3], eval_args[4], eval_args[5], eval_args[6], eval_args[7]
+#     # run model against subset of eval examples
+#     # return score as a function of (or copy of) exact match or avg f1 score
+#     t1 = time.time()
+#     modified_dataset = dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": string})
+#     eval_kwargs = {} 
+#     eval_kwargs['eval_examples'] = modified_dataset
+#     t2=time.time()
+#     print("Mapping modify time %d", t2-t1)
+#     modified_eval_dataset_featurized = modified_dataset.map(
+#             prepare_eval_dataset,
+#             batched=True,
+#             num_proc=NUM_PREPROCESSING_WORKERS,
+#             remove_columns=modified_dataset.column_names
+#         ) 
+#     t3 = time.time()
+#     print("Map featurize time %d", t3-t2)
+#     trainer = trainer_class(
+#     model= model,
+#     args=training_args,
+#     train_dataset=train_dataset_featurized,
+#     eval_dataset=modified_eval_dataset_featurized,
+#     tokenizer=tokenizer,
+#     compute_metrics=compute_metrics_and_store_predictions
+#     ) 
+#     # NOTE: train_dataset_featurized is None  while it probably should not be
+#     # # TODO check parameters like if args is training_args
+#         #TODO check if train_dataset_featurized needs to be sampled as well
+#     t4 = time.time()
+#     print("Trainer create time %d", t4-t3)
+#     results = trainer.evaluate(**eval_kwargs)
+#     t5 = time.time()
+#     print("Evaluation time %d", t5-t4)
+#     print('Evaluation results:')
+#     print(results)
 
-    return results['eval_f1'] # TODO replace with cross entropy loss suket
+#     return results['eval_f1'] # TODO replace with cross entropy loss suket
 
 def generate_adv_examples(eval_args, dataset, desired_string_size, adv_vocab, beam_size):
     # scenarios = [[x] for x in adv_vocab]
@@ -305,7 +333,7 @@ def main():
         #     seen_contexts.add(example['context'])
 
         if args.max_eval_samples:
-            eval_dataset = eval_dataset.select(range(args.max_eval_samples))
+            eval_dataset = eval_dataset.select(range(args.max_eval_samples)) 
         eval_dataset_featurized = eval_dataset.map(
             prepare_eval_dataset,
             batched=True,
@@ -317,17 +345,17 @@ def main():
     eval_kwargs = {}
     # If you want to use custom metrics, you should define your own "compute_metrics" function.
     # For an example of a valid compute_metrics function, see compute_accuracy in helpers.py.
-    compute_metrics = lambda eval_preds: metric.compute(
-                predictions=eval_preds.predictions, references=eval_preds.label_ids)
+    # compute_metrics = lambda eval_preds: metric.compute(
+    #             predictions=eval_preds.predictions, references=eval_preds.label_ids)
+    compute_metrics = compute_distance_off
     if args.task == 'qa':
         # For QA, we need to use a tweaked version of the Trainer (defined in helpers.py)
         # to enable the question-answering specific evaluation metrics
         trainer_class = QuestionAnsweringTrainer
-        eval_kwargs['eval_examples'] = eval_dataset
-        metric = datasets.load_metric('squad')
+
         if args.gen_adv_examples:
             # makes the eval dataset only of length 100 when gen_adv_examples
-            eval_dataset = eval_dataset.select(range(eval_subset_size))
+            eval_dataset = eval_dataset.select(range(eval_subset_size)) # TODO: change this later
             # for adv_example in adv_examples:
             
             adversarial_words = set(get_common_words() + get_adv_words(100)) 
@@ -335,6 +363,9 @@ def main():
         else:
             compute_metrics = lambda eval_preds: metric.compute(
                 predictions=eval_preds.predictions, references=eval_preds.label_ids)
+        eval_kwargs['eval_examples'] = eval_dataset
+        metric = datasets.load_metric('squad')
+
     elif args.task == 'nli':
         compute_metrics = compute_accuracy
     
@@ -372,11 +403,15 @@ def main():
         if args.gen_adv_examples:
             trainer_class = QuestionAnsweringTrainer
             # arguments passed in that are necessary to test datasets with modified 'context' (where a certain adv example is appended to all 'context' in the modified dataset)
-            eval_args = [eval_kwargs, model, training_args, train_dataset_featurized, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset,trainer_class]
+            # eval_args = [eval_kwargs, model, training_args, train_dataset_featurized, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset,trainer_class]
             beam_size = 3
-            universal_trigger_len = 3
-            all_possible_words = ["why", "how", "when", "who", "because"]
-            generate_universal_triggers(universal_trigger_len, all_possible_words, eval_dataset, beam_size, eval_args)
+            universal_trigger_len = 3 # TODO make longer 
+            all_possible_words = ["why", "how", "when", "who", "because"] # TODO make larger
+            # TODO: be more clever about which eval examples and questions to use: perhaps use filter method or something else
+            trainer_args = [trainer_class, model, training_args, train_dataset_featurized, eval_dataset, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset]
+            generate_universal_triggers(universal_trigger_len, all_possible_words, beam_size, trainer_args, eval_kwargs)
+            
+            # generate_universal_triggers(universal_trigger_len, all_possible_words, eval_dataset, beam_size, eval_args)
             # adv_examples = generate_adv_examples(eval_args, eval_dataset, 12, adversarial_words, beam_size)
             # write_adv_text(adv_examples)
         else:
