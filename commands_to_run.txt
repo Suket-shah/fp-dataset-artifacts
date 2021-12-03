@@ -1,0 +1,14 @@
+# bottom command is what you use to run model from command line
+python3 run.py --do_eval --task qa --dataset squad --model ./trained_model/checkpoint-32500 --output_dir ./eval_output/
+
+python3 run.py --do_train --task qa --dataset squad --output_dir ./trained_model/
+
+python3 run.py --do_eval --task qa --dataset squad --output_dir ./eval_output/
+
+python3 run.py --do_eval --task qa --dataset squad --model ./trained_model/ --output_dir ./eval_output/
+python3 run.py --do_eval --task qa --dataset squad --model ./trained_model/checkpoint-32500 --output_dir ./eval_output/
+
+
+
+# bottom command is what you use to run model from command line
+python3 run.py --do_eval --task qa --dataset squad --model ./trained_model/checkpoint-32500 --output_dir ./eval_output/
