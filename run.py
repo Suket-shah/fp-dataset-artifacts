@@ -9,7 +9,9 @@ from generate_adv_examples import *
 import time 
 global eval_subset_size
 eval_subset_size = 10
-global adv_dict_size 
+global adv_dict_size
+global filter_questions_based_on_acceptable_question_types
+filter_questions_based_on_acceptable_question_types = True 
 # adv_dict_size= 300
 adv_dict_size= 500
 beam_size = 4
@@ -322,6 +324,7 @@ def main():
         train_dataset = dataset['train']
         if args.max_train_samples:
             train_dataset = train_dataset.select(range(args.max_train_samples))
+            # only select questions that are why 
         train_dataset_featurized = train_dataset.map(
             prepare_train_dataset,
             batched=True,
@@ -373,6 +376,9 @@ def main():
 
         if args.gen_adv_examples:
             # makes the eval dataset only of length 100 when gen_adv_examples
+            if filter_questions_based_on_acceptable_question_types:
+                acceptable_question_types = ["Why", "Where", "When"]
+                eval_dataset = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types if(ele in example['question'])] != [] ) 
             eval_dataset = eval_dataset.select(range(eval_subset_size)) # TODO: change this later
             # for adv_example in adv_examples:
             
