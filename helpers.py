@@ -5,6 +5,7 @@ from transformers import Trainer, EvalPrediction
 from transformers.trainer_utils import PredictionOutput
 from typing import Tuple
 from tqdm.auto import tqdm
+from scipy.special import softmax
 
 QA_MAX_ANSWER_LENGTH = 30
 
@@ -49,12 +50,12 @@ def compute_distance_off(eval_preds: EvalPrediction):
     #         axis=1) == eval_preds.label_ids).astype(
     #         np.float32).mean().item()
     # }
-    # predictions = [eval_preds.predictions[i]['prediction_text'] for i in range(len(eval_preds.predictions))]
+    predictions = [eval_preds.predictions[i]['prediction_text'] for i in range(len(eval_preds.predictions))]
     # # TODO: 11-30-21 predictions is way too long: find out why of length 10570 because that is likely slowing down performance
-    # predictions_mean= np.mean(predictions)
-    # return {
-    #     'CrossEntropyLoss': predictions_mean
-    # }
+    predictions_mean= np.mean(predictions)
+    return {
+        'CrossEntropyLoss': predictions_mean
+    }
     raise NotImplementedError("Not implemented") # TODO suket: modify this method after you have changed eval_preds
 
 # This function preprocesses a question answering dataset, tokenizing the question and context text
@@ -215,15 +216,27 @@ def postprocess_qa_predictions(examples,
             # We grab the predictions of the model for this feature.
             start_logits = all_start_logits[feature_index]
             end_logits = all_end_logits[feature_index]
+            start_logits = softmax(start_logits)
+            end_logits = softmax(end_logits)
             # This is what will allow us to map some the positions in our logits
             # to span of texts in the original context.
             offset_mapping = features[feature_index]["offset_mapping"]
 
+            character_to_index_of_token = {}
+            for index_of_logit in range(len(offset_mapping)):
+                range_of_chars = offset_mapping[index_of_logit]
+                if not range_of_chars:
+                    continue
+                start_index, end_index = range_of_chars
+                for index_char in range(start_index, end_index+1):
+                    character_to_index_of_token[index_char] = index_of_logit
+                    
             # Go through all possibilities for the `n_best_size` greater start and end logits.
             start_indexes = np.argsort(start_logits)[
                             -1: -n_best_size - 1: -1].tolist()
             end_indexes = np.argsort(end_logits)[
                           -1: -n_best_size - 1: -1].tolist()
+                          
             for start_index in start_indexes:
                 for end_index in end_indexes:
                     # Don't consider out-of-scope answers, either because the indices are out of bounds or correspond
@@ -268,7 +281,14 @@ def postprocess_qa_predictions(examples,
             predictions.insert(0, {"text": "empty", "start_logit": 0.0,
                                    "end_logit": 0.0, "score": 0.0})
 
-        all_predictions[example["id"]] = predictions[0]["text"] # TODO include score to calculate the loss
+        indices_start_logit = [character_to_index_of_token[example['answers']['answer_start'][i]] for i in range(len(example['answers']['answer_start']))]
+        indices_end_logit = [character_to_index_of_token[ example['answers']['answer_start'][i] -1 + len(example['answers']['text'][i]) ] for i in range(len(example['answers']['answer_start']))]
+        index_start_logit_begin_target_span = character_to_index_of_token[len(example['context'])-24]
+        index_end_logit_end_target_span = character_to_index_of_token[len(example['context'])-2]
+        target_span_score = start_logits[index_start_logit_begin_target_span] + end_logits[index_end_logit_end_target_span]
+        all_predictions[example["id"]] = max([start_logits[indices_start_logit[i]] + end_logits[indices_end_logit[i]] - target_span_score for i in range(len(example['answers']['answer_start']))] )
+
+        # all_predictions[example["id"]] = predictions[0]["score"]
         # TODO suket: find out how to correctly send the score variables for all predictions. The code as is does not send "score"
     return all_predictions
 

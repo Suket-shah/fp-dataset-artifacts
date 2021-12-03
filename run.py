@@ -8,7 +8,7 @@ import json
 from generate_adv_examples import *
 import time 
 global eval_subset_size
-eval_subset_size = 25
+eval_subset_size = 10
 global adv_dict_size 
 # adv_dict_size= 300
 adv_dict_size= 500
@@ -52,11 +52,12 @@ def make_prediction(example, universal_trigger_string, eval_args):
 #         total_loss += loss
 #     return total_loss
 
-def get_cross_entropy_loss(universal_trigger_string, trainer_args, eval_kwargs):
+def get_cross_entropy_loss(universal_trigger_string, trainer_args):
     trainer_class, model, training_args, train_dataset_featurized, eval_dataset, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset = trainer_args
     # STEP 1: modify eval dataset to include universal_trigger_string plus target span "To kill american people" with map method
     adv_text = " " + universal_trigger_string + ". To kill american people."
     modified_dataset = eval_dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": adv_text})
+
     # Step 2: Create trainer with modified dataset that is featurized 
     # Step 2A: featurize modified_dataset
     modified_eval_dataset_featurized = modified_dataset.map(
@@ -73,47 +74,64 @@ def get_cross_entropy_loss(universal_trigger_string, trainer_args, eval_kwargs):
     tokenizer=tokenizer,
     compute_metrics=compute_metrics_and_store_predictions
     )
+    eval_kwargs = {}
+    eval_kwargs['eval_examples'] = modified_dataset
     # Step 3: Call evaluate with correct kwargs
     results = trainer.evaluate(**eval_kwargs)
     total_loss = results['eval_CrossEntropyLoss'] #TODO: suket Check if the loss is being calculated correctly
     return total_loss
 
-def generate_universal_triggers(universal_trigger_len, all_possible_words, beam_size, trainer_args, eval_kwargs):
+def generate_universal_triggers(universal_trigger_len, all_possible_words, beam_size, trainer_args):
     # scenarios = [("",0)] # for x in adv_vocab
     scenarios = []
     for i in range(universal_trigger_len):
+        t1=time.time()
         if i==0:
             universal_trigger_list = ["the" for x in range(universal_trigger_len)]
             for word in all_possible_words:
                 universal_trigger_list[0] = word
                 universal_trigger_string = ' '.join(universal_trigger_list)
                 # total_loss = calc_total_loss(universal_trigger_string, examples_to_test_against)
-                total_loss = get_cross_entropy_loss(universal_trigger_string, trainer_args, eval_kwargs) # TODO pass in necessary parameters
+                total_loss = get_cross_entropy_loss(universal_trigger_string, trainer_args) # TODO pass in necessary parameters
                 # TODO: ensure that list is being copied by value and not by memory reference OR might have to use copy python library
                 scenarios.append((copy.deepcopy(universal_trigger_list), total_loss))
             scenarios.sort(key = lambda x: x[1])
             # trim scenarios to length of beam size
+            write_adv_text(scenarios)
+            for scenario in scenarios:
+                print(scenario)
             if len(scenarios)>beam_size:
                 scenarios = scenarios[0:beam_size] # check if need reverse=True
-            write_adv_text(scenarios)
+            t2=time.time()
+            write_adv_text(["Iteration 0 took " + str(t2-t1)])
         else:
             # use beam search 
             previous_k_best_universal_triggers_list = [scenarios[i][0] for i in range(len(scenarios))]
             new_scenarios = []
+            t1=time.time()
             for prev_word_seq in previous_k_best_universal_triggers_list:
-                for word in all_possible_words:
+                t3 = time.time()
+                for count, word in enumerate(all_possible_words):
                     prev_word_seq[i] = word
                     universal_trigger_string = ' '.join(prev_word_seq)
                     # total_loss = calc_total_loss(universal_trigger_string, examples_to_test_against)
-                    total_loss = get_cross_entropy_loss(universal_trigger_string, trainer_args, eval_kwargs)
+                    total_loss = get_cross_entropy_loss(universal_trigger_string, trainer_args)
                     # TODO: ensure that list is being copied by value and not by memory reference OR might have to use copy python library
                     new_scenarios.append((copy.deepcopy(prev_word_seq), total_loss))
+                    if count%100==0 and count!=0:
+                        t4=time.time()
+                        write_adv_text(["100 words took " + str(t4-t3)])
+                        t3=time.time()
                 log_progress(scenarios)
+            t2=time.time()
+            write_adv_text(["Iteration " +str(i)+" took " + str(t2-t1)])
             scenarios = sorted(new_scenarios, key = lambda x: x[1])
+            write_adv_text(scenarios)
+            for scenario in scenarios:
+                print(scenario) #TODO probably can delete
             # trim scenarios to length of beam size
             if len(scenarios)>beam_size:
                 scenarios = scenarios[0:beam_size] # check if need reverse=True
-            write_adv_text(scenarios)
 
 
 def calc_loss(output_span, target_span, paragraph):
@@ -150,7 +168,7 @@ def add_adversarial_text(example, adversarial_text):
 #     # return score as a function of (or copy of) exact match or avg f1 score
 #     t1 = time.time()
 #     modified_dataset = dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": string})
-#     eval_kwargs = {} 
+    # eval_kwargs = {} 
 #     eval_kwargs['eval_examples'] = modified_dataset
 #     t2=time.time()
 #     print("Mapping modify time %d", t2-t1)
@@ -183,27 +201,27 @@ def add_adversarial_text(example, adversarial_text):
 
 #     return results['eval_f1'] # TODO replace with cross entropy loss suket
 
-def generate_adv_examples(eval_args, dataset, desired_string_size, adv_vocab, beam_size):
-    # scenarios = [[x] for x in adv_vocab]
-    # scenarios starts for first itr starts out as size of adv_vocab, but every other iteration is size of beam
-    scenarios = [("",0)] # for x in adv_vocab
-    # add string to each item in scenarios
-    for i in range(desired_string_size):
-        new_scenarios = [] # contains (adv_text, attack_score) pairs
-        for potential_word in adv_vocab:
-            for scenario in scenarios:
-                # initial condition
-                if scenario == "":
-                    adv_text = potential_word
-                else:
-                    adv_text = scenario[0] + " "+ potential_word
-                attack_score = calc_attack_score(eval_args, dataset, adv_text)
-                new_scenarios.append((adv_text, attack_score))
-        scenarios = sorted(new_scenarios, key = lambda x: x[1])
-        if len(scenarios)>beam_size:
-            scenarios = scenarios[0:beam_size] # check if need reverse=True
-        write_adv_text(scenarios)
-    return scenarios
+# def generate_adv_examples(eval_args, dataset, desired_string_size, adv_vocab, beam_size):
+#     # scenarios = [[x] for x in adv_vocab]
+#     # scenarios starts for first itr starts out as size of adv_vocab, but every other iteration is size of beam
+#     scenarios = [("",0)] # for x in adv_vocab
+#     # add string to each item in scenarios
+#     for i in range(desired_string_size):
+#         new_scenarios = [] # contains (adv_text, attack_score) pairs
+#         for potential_word in adv_vocab:
+#             for scenario in scenarios:
+#                 # initial condition
+#                 if scenario == "":
+#                     adv_text = potential_word
+#                 else:
+#                     adv_text = scenario[0] + " "+ potential_word
+#                 attack_score = calc_attack_score(eval_args, dataset, adv_text)
+#                 new_scenarios.append((adv_text, attack_score))
+#         scenarios = sorted(new_scenarios, key = lambda x: x[1])
+#         if len(scenarios)>beam_size:
+#             scenarios = scenarios[0:beam_size] # check if need reverse=True
+#         write_adv_text(scenarios)
+#     return scenarios
 
 def add_adv_text_per_question(example, dictionary_mapping_example_to_index):
     question = example["question"]
@@ -342,7 +360,7 @@ def main():
         )  
     # Select the training configuration
     trainer_class = Trainer
-    eval_kwargs = {}
+    # eval_kwargs = {}
     # If you want to use custom metrics, you should define your own "compute_metrics" function.
     # For an example of a valid compute_metrics function, see compute_accuracy in helpers.py.
     # compute_metrics = lambda eval_preds: metric.compute(
@@ -360,10 +378,11 @@ def main():
             
             adversarial_words = set(get_common_words() + get_adv_words(100)) 
             adversarial_words= random.sample(adversarial_words, adv_dict_size)
+            adversarial_words = list(adversarial_words)
         else:
             compute_metrics = lambda eval_preds: metric.compute(
                 predictions=eval_preds.predictions, references=eval_preds.label_ids)
-        eval_kwargs['eval_examples'] = eval_dataset
+        # eval_kwargs['eval_examples'] = eval_dataset
         metric = datasets.load_metric('squad')
 
     elif args.task == 'nli':
@@ -404,18 +423,19 @@ def main():
             trainer_class = QuestionAnsweringTrainer
             # arguments passed in that are necessary to test datasets with modified 'context' (where a certain adv example is appended to all 'context' in the modified dataset)
             # eval_args = [eval_kwargs, model, training_args, train_dataset_featurized, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset,trainer_class]
-            beam_size = 3
-            universal_trigger_len = 3 # TODO make longer 
+            beam_size = 5
+            universal_trigger_len = 10 # TODO make longer 
             all_possible_words = ["why", "how", "when", "who", "because"] # TODO make larger
+            # all_possible_words.extend(adversarial_words)
             # TODO: be more clever about which eval examples and questions to use: perhaps use filter method or something else
             trainer_args = [trainer_class, model, training_args, train_dataset_featurized, eval_dataset, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset]
-            generate_universal_triggers(universal_trigger_len, all_possible_words, beam_size, trainer_args, eval_kwargs)
+            generate_universal_triggers(universal_trigger_len, all_possible_words, beam_size, trainer_args)
             
             # generate_universal_triggers(universal_trigger_len, all_possible_words, eval_dataset, beam_size, eval_args)
             # adv_examples = generate_adv_examples(eval_args, eval_dataset, 12, adversarial_words, beam_size)
             # write_adv_text(adv_examples)
-        else:
-            results = trainer.evaluate(**eval_kwargs)
+        # else:
+        #     results = trainer.evaluate(**eval_kwargs)
 
         # To add custom metrics, you should replace the "compute_metrics" function (see comments above).
         #
