@@ -8,12 +8,15 @@ import json
 from generate_adv_examples import *
 import time 
 global eval_subset_size
-eval_subset_size = 10
+eval_subset_size = 6
+universal_trigger_len = 6
 global adv_dict_size
 global filter_questions_based_on_acceptable_question_types
 filter_questions_based_on_acceptable_question_types = True 
 # adv_dict_size= 300
 adv_dict_size= 500
+global error_cnt
+error_cnt = 0
 beam_size = 4
 if beam_size<adv_dict_size:
     beam_size = adv_dict_size
@@ -57,7 +60,7 @@ def make_prediction(example, universal_trigger_string, eval_args):
 def get_cross_entropy_loss(universal_trigger_string, trainer_args):
     trainer_class, model, training_args, train_dataset_featurized, eval_dataset, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset = trainer_args
     # STEP 1: modify eval dataset to include universal_trigger_string plus target span "To kill american people" with map method
-    adv_text = " " + universal_trigger_string + ". To kill american people."
+    adv_text = " " + universal_trigger_string + " To kill american people."
     modified_dataset = eval_dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": adv_text})
 
     # Step 2: Create trainer with modified dataset that is featurized 
@@ -89,37 +92,35 @@ def generate_universal_triggers(universal_trigger_len, all_possible_words, beam_
     for i in range(universal_trigger_len):
         t1=time.time()
         if i==0:
-            universal_trigger_list = ["the" for x in range(universal_trigger_len)]
+            # universal_trigger_list = ["the" for x in range(universal_trigger_len)]
             for word in all_possible_words:
-                universal_trigger_list[0] = word
-                universal_trigger_string = ' '.join(universal_trigger_list)
-                # total_loss = calc_total_loss(universal_trigger_string, examples_to_test_against)
+                # universal_trigger_list[0] = word
+                # universal_trigger_string = ' '.join(universal_trigger_list)
+                universal_trigger_string = word + " "
                 total_loss = get_cross_entropy_loss(universal_trigger_string, trainer_args) # TODO pass in necessary parameters
                 # TODO: ensure that list is being copied by value and not by memory reference OR might have to use copy python library
-                scenarios.append((copy.deepcopy(universal_trigger_list), total_loss))
+                # scenarios.append((copy.deepcopy(universal_trigger_list), total_loss))
+                scenarios.append( (universal_trigger_string, total_loss) )
             scenarios.sort(key = lambda x: x[1])
             # trim scenarios to length of beam size
             write_adv_text(scenarios)
-            for scenario in scenarios:
-                print(scenario)
             if len(scenarios)>beam_size:
                 scenarios = scenarios[0:beam_size] # check if need reverse=True
             t2=time.time()
             write_adv_text(["Iteration 0 took " + str(t2-t1)])
         else:
             # use beam search 
-            previous_k_best_universal_triggers_list = [scenarios[i][0] for i in range(len(scenarios))]
+            previous_k_best_universal_triggers = [scenarios[i][0] for i in range(len(scenarios))]
             new_scenarios = []
             t1=time.time()
-            for prev_word_seq in previous_k_best_universal_triggers_list:
+            for prev_string in previous_k_best_universal_triggers:
                 t3 = time.time()
                 for count, word in enumerate(all_possible_words):
-                    prev_word_seq[i] = word
-                    universal_trigger_string = ' '.join(prev_word_seq)
-                    # total_loss = calc_total_loss(universal_trigger_string, examples_to_test_against)
+                    universal_trigger_string = prev_string + word + " "
+                    # universal_trigger_string = ' '.join(prev_word_seq)
                     total_loss = get_cross_entropy_loss(universal_trigger_string, trainer_args)
                     # TODO: ensure that list is being copied by value and not by memory reference OR might have to use copy python library
-                    new_scenarios.append((copy.deepcopy(prev_word_seq), total_loss))
+                    new_scenarios.append((universal_trigger_string, total_loss))
                     if count%100==0 and count!=0:
                         t4=time.time()
                         write_adv_text(["100 words took " + str(t4-t3)])
@@ -129,36 +130,34 @@ def generate_universal_triggers(universal_trigger_len, all_possible_words, beam_
             write_adv_text(["Iteration " +str(i)+" took " + str(t2-t1)])
             scenarios = sorted(new_scenarios, key = lambda x: x[1])
             write_adv_text(scenarios)
-            for scenario in scenarios:
-                print(scenario) #TODO probably can delete
             # trim scenarios to length of beam size
             if len(scenarios)>beam_size:
                 scenarios = scenarios[0:beam_size] # check if need reverse=True
 
 
-def calc_loss(output_span, target_span, paragraph):
-    # return random.randrange(10)
-    # loss = torch.nn.CrossEntropyLoss()
-    first_output = output_span.split(' ')[0]
-    last_output = output_span.split(' ')[-1]
-    first_target = target_span.split(' ')[0]
-    last_target = target_span.split(' ')[-1]
-    output_start_index = re.search(r'\b({})\b'.format(first_output), paragraph).start()
-    output_end_index = re.search(r'\b({})\b'.format(last_output), paragraph).end()
-    target_start_index = re.search(r'\b({})\b'.format(first_target), paragraph).start() 
-    target_end_index = re.search(r'\b({})\b'.format(last_target), paragraph).start() 
-    print(output_start_index)
-    start_loss = target_start_index - output_start_index
-    end_loss = target_end_index - output_end_index
-    # TODO continue full implementation
-    return start_loss + end_loss
+# def calc_loss(output_span, target_span, paragraph):
+#     # return random.randrange(10)
+#     # loss = torch.nn.CrossEntropyLoss()
+#     first_output = output_span.split(' ')[0]
+#     last_output = output_span.split(' ')[-1]
+#     first_target = target_span.split(' ')[0]
+#     last_target = target_span.split(' ')[-1]
+#     output_start_index = re.search(r'\b({})\b'.format(first_output), paragraph).start()
+#     output_end_index = re.search(r'\b({})\b'.format(last_output), paragraph).end()
+#     target_start_index = re.search(r'\b({})\b'.format(first_target), paragraph).start() 
+#     target_end_index = re.search(r'\b({})\b'.format(last_target), paragraph).start() 
+#     print(output_start_index)
+#     start_loss = target_start_index - output_start_index
+#     end_loss = target_end_index - output_end_index
+#     # TODO continue full implementation
+#     return start_loss + end_loss
 
     # raise NotImplementedError("Have Suket implement")
 
 
-def replace_context_with_adv_text(example, adversarial_text):
-    example['context'] = adversarial_text
-    return example
+# def replace_context_with_adv_text(example, adversarial_text):
+#     example['context'] = adversarial_text
+#     return example
 def add_adversarial_text(example, adversarial_text):
     example['context'] = example['context'] + adversarial_text
     return example
@@ -225,11 +224,11 @@ def add_adversarial_text(example, adversarial_text):
 #         write_adv_text(scenarios)
 #     return scenarios
 
-def add_adv_text_per_question(example, dictionary_mapping_example_to_index):
-    question = example["question"]
-    value = dictionary_mapping_example_to_index[question]
-    example["context"] = example["context"] + str(value) 
-    return example
+# def add_adv_text_per_question(example, dictionary_mapping_example_to_index):
+#     question = example["question"]
+#     value = dictionary_mapping_example_to_index[question]
+#     example["context"] = example["context"] + str(value) 
+#     return example
 
 def main():
 
@@ -377,9 +376,10 @@ def main():
         if args.gen_adv_examples:
             # makes the eval dataset only of length 100 when gen_adv_examples
             if filter_questions_based_on_acceptable_question_types:
-                acceptable_question_types = ["Why", "Where", "When"]
+                # acceptable_question_types = ["Why", "Where", "When"]
+                acceptable_question_types = ["Why"]
                 eval_dataset = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types if(ele in example['question'])] != [] ) 
-            eval_dataset = eval_dataset.select(range(eval_subset_size)) # TODO: change this later
+            eval_dataset = eval_dataset.select(range(eval_subset_size)) # TODO 12-4-21: instead of entire range, pick indices better
             # for adv_example in adv_examples:
             
             adversarial_words = set(get_common_words() + get_adv_words(100)) 
@@ -430,8 +430,14 @@ def main():
             # arguments passed in that are necessary to test datasets with modified 'context' (where a certain adv example is appended to all 'context' in the modified dataset)
             # eval_args = [eval_kwargs, model, training_args, train_dataset_featurized, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset,trainer_class]
             beam_size = 5
-            universal_trigger_len = 10 # TODO make longer 
-            all_possible_words = ["why", "how", "when", "who", "because"] # TODO make larger
+            universal_trigger_len = 6 # TODO make longer 
+            all_possible_words = ["Why?", "why", "How?", "When?", "who", "Because", "because", "since", "by"] # TODO make larger and check if phrases
+            punctuation = [".", "?", "!", ",", ";"]
+            more_words = ["certainly", "maybe", "probably", "everything", "due", "reason", "consequently"]
+            word_phrases = ["by", "for the fact that", "in view of the fact that", "the number 42"]
+            all_possible_words.extend(more_words)
+            all_possible_words.extend(punctuation)
+            all_possible_words = set(all_possible_words)
             # all_possible_words.extend(adversarial_words)
             # TODO: be more clever about which eval examples and questions to use: perhaps use filter method or something else
             trainer_args = [trainer_class, model, training_args, train_dataset_featurized, eval_dataset, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset]
