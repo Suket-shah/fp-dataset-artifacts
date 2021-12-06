@@ -8,17 +8,19 @@ import json
 from generate_adv_examples import *
 import time 
 global eval_subset_size
-eval_subset_size = 20
+eval_subset_size = 50
 universal_trigger_len = 10
 global adv_dict_size
 global filter_questions_based_on_acceptable_question_types
+global only_use_common_words_small
+only_use_common_words_small = True
 filter_questions_based_on_acceptable_question_types = False 
 # adv_dict_size= 300
 adv_dict_size= 300
 global error_cnt
 error_cnt = 0
 beam_size = 8
-if beam_size<adv_dict_size:
+if beam_size>adv_dict_size:
     beam_size = adv_dict_size
 import random
 import logging
@@ -36,14 +38,14 @@ def write_adv_text(adv_examples, file_name):
     file1.write("\n")
     file1.close()
 
-def log_progress(adv_examples):
-    # TODO implement with logging library
-    return 0
+# def log_progress(adv_examples):
+#     # TODO implement with logging library
+#     return 0
 
 # TODO modify parameters
 # Need implement a function that returns the predicted answer with a specific universal trigger and target span added to context
-def make_prediction(example, universal_trigger_string, eval_args):
-    raise NotImplementedError()
+# def make_prediction(example, universal_trigger_string, eval_args):
+#     raise NotImplementedError()
 
 # def calc_total_loss(universal_trigger_string, subset_of_examples, eval_args):
 #     # return random.randrange(10)
@@ -110,7 +112,6 @@ def generate_universal_triggers(universal_trigger_len, all_possible_words, beam_
                 scenarios = scenarios[0:beam_size] # check if need reverse=True
             write_adv_text(scenarios, "beam_best.txt")
             t2=time.time()
-            write_adv_text(["Iteration 0 took " + str(t2-t1)])
             write_adv_text(["Iteration 0 took " + str(t2-t1)], "all_words.txt")
             write_adv_text(["Iteration 0 took " + str(t2-t1)], "beam_best.txt")
         else:
@@ -130,7 +131,7 @@ def generate_universal_triggers(universal_trigger_len, all_possible_words, beam_
                         t4=time.time()
                         write_adv_text(["100 words took " + str(t4-t3)], "all_words.txt")
                         t3=time.time()
-                log_progress(scenarios)
+                # log_progress(scenarios)
             t2=time.time()
             write_adv_text(["Iteration " +str(i)+" took " + str(t2-t1)],"all_words.txt")
             write_adv_text(["Iteration " +str(i)+" took " + str(t2-t1)],"beam_best.txt")
@@ -392,17 +393,16 @@ def main():
             common_words_large = get_common_words("1000_common_words.txt")
             charged_words = get_charged_words(500)
             
-            all_possible_words = ["Why?", "why", "How?", "When?", "who", "Because", "because", "since", "by"] 
-            punctuation = [".", "?", "!", ",", ";"]
             more_words = ["certainly", "maybe", "probably", "everything", "due", "reason", "consequently"]
             # We want all common_words_small, and a mix of common_words_large and charged_words
             charged_words_sampled = random.sample(charged_words, int(adv_dict_size/4))
             common_words_sampled= random.sample(common_words_large, int(adv_dict_size/2))
-            adversarial_words = list(set(charged_words_sampled + common_words_sampled + common_words_small))
-            all_possible_words.extend(more_words)
-            all_possible_words.extend(punctuation)
-            all_possible_words.extend(adversarial_words)
-            all_possible_words = set(all_possible_words)
+            if only_use_common_words_small:
+                adversarial_words = list(set(common_words_small))
+            else:
+                adversarial_words = list(set(charged_words_sampled + common_words_sampled + common_words_small))
+                adversarial_words.extend(more_words)
+            adversarial_words = list(set(adversarial_words))
         else:
             compute_metrics = lambda eval_preds: metric.compute(
                 predictions=eval_preds.predictions, references=eval_preds.label_ids)
@@ -451,7 +451,7 @@ def main():
 
             # TODO: be more clever about which eval examples and questions to use: perhaps use filter method or something else
             trainer_args = [trainer_class, model, training_args, train_dataset_featurized, eval_dataset, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset]
-            generate_universal_triggers(universal_trigger_len, all_possible_words, beam_size, trainer_args)
+            generate_universal_triggers(universal_trigger_len, adversarial_words, beam_size, trainer_args)
             
             # generate_universal_triggers(universal_trigger_len, all_possible_words, eval_dataset, beam_size, eval_args)
             # adv_examples = generate_adv_examples(eval_args, eval_dataset, 12, adversarial_words, beam_size)

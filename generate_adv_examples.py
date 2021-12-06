@@ -2,7 +2,9 @@
 import requests as r
 import re
 
-def get_common_words():
+
+# param is either "1000_common_words.txt" or "common_words.txt"
+def get_common_words(file_name):
     a_file = open("1000_common_words.txt", "r")
     common_words = []
     for line in a_file:
@@ -11,7 +13,7 @@ def get_common_words():
     a_file.close()
     return(common_words)
 
-def get_adv_words(num_words=100):
+def get_charged_words(num_words=100):
     # url ="https://raw.githubusercontent.com/fnielsen/afinn/master/afinn/data/AFINN-111.txt"
     a_file = open("AFINN-111.txt", "r")
     common_words = []
@@ -32,7 +34,7 @@ def get_adv_words(num_words=100):
             valid_cnt+=1
         else:
             error_cnt+=1
-        print(score_2)
+        # print(score_2)
     num_words=int(num_words/2)
     biggest_items = sorted(word_to_score.items(), reverse=True)[0:num_words]
     smallest_items=sorted(word_to_score.items())[0:num_words]
