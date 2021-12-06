@@ -5,7 +5,7 @@ import re
 
 # param is either "1000_common_words.txt" or "common_words.txt"
 def get_common_words(file_name):
-    a_file = open("1000_common_words.txt", "r")
+    a_file = open(file_name, "r")
     common_words = []
     for line in a_file:
         stripped_line = line.strip()
