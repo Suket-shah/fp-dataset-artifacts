@@ -3,29 +3,35 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, \
     AutoModelForQuestionAnswering, Trainer, TrainingArguments, HfArgumentParser
 from helpers import prepare_dataset_nli, prepare_train_dataset_qa, \
     prepare_validation_dataset_qa, QuestionAnsweringTrainer, compute_accuracy, compute_distance_off
-import os
-import json
 from generate_adv_examples import *
 import time 
+import random
+import os
+import json
+# import logging
+# import copy
+# import re
+
+
 global eval_subset_size
-eval_subset_size = 16
-universal_trigger_len = 10
 global adv_dict_size
 global filter_questions_based_on_acceptable_question_types
 global only_use_common_words_small
-only_use_common_words_small = True
-filter_questions_based_on_acceptable_question_types = True 
-# adv_dict_size= 300
-adv_dict_size= 300
+global acceptable_question_types
 global error_cnt
+
+eval_subset_size = 20
+universal_trigger_len = 10
+only_use_common_words_small = False
+filter_questions_based_on_acceptable_question_types = True 
+# acceptable_question_types = ["Why","Who", "When", "Where", "How"] 
+adv_dict_size= 200
 error_cnt = 0
 beam_size = 8
+
 if beam_size>adv_dict_size:
     beam_size = adv_dict_size
-import random
-import logging
-import copy
-import re
+
 
 NUM_PREPROCESSING_WORKERS = 2
 
@@ -385,9 +391,29 @@ def main():
             # makes the eval dataset only of length 100 when gen_adv_examples
             if filter_questions_based_on_acceptable_question_types:
                 # acceptable_question_types = ["Why", "Where", "When"]
-                acceptable_question_types = ["Why", "How"]
-                eval_dataset = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types if(ele in example['question'])] != [] ) 
-            eval_dataset = eval_dataset.select(range(eval_subset_size)) # TODO 12-4-21: instead of entire range, pick indices better
+                # eval_dataset = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types if(ele in example['question'])] != [] ) 
+
+                acceptable_question_types1 = ["Why"]
+                acceptable_question_types2 = ["What"]
+                acceptable_question_types3 = ["When"]
+                acceptable_question_types4 = ["Where"]
+                acceptable_question_types5 = ["How"]
+                acceptable_question_types = acceptable_question_types1 + acceptable_question_types2 + acceptable_question_types3 + acceptable_question_types4 + acceptable_question_types5
+
+                eval_dataset0 = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types1 if(ele in example['question'])] != [] )  
+                eval_dataset0 = eval_dataset0.select(range(int(eval_subset_size/5)))
+                eval_dataset1 = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types2 if(ele in example['question'])] != [] )  
+                eval_dataset1 = eval_dataset1.select(range(int(eval_subset_size/5)))
+                eval_dataset2 = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types3 if(ele in example['question'])] != [] )  
+                eval_dataset2 = eval_dataset2.select(range(int(eval_subset_size/5)))
+                eval_dataset3 = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types4 if(ele in example['question'])] != [] )  
+                eval_dataset3 = eval_dataset3.select(range(int(eval_subset_size/5)))
+                eval_dataset4 = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types5 if(ele in example['question'])] != [] )  
+                eval_dataset4 = eval_dataset4.select(range(int(eval_subset_size/5)))
+                dataset_list = [eval_dataset0, eval_dataset1, eval_dataset2, eval_dataset3, eval_dataset4]
+                total_dataset = datasets.concatenate_datasets(dataset_list)
+                eval_dataset = total_dataset # TODO 12-4-21: instead of entire range, pick indices better
+                eval_dataset = eval_dataset.shuffle(seed=42)
             
             common_words_small = get_common_words("common_words.txt")
             common_words_large = get_common_words("1000_common_words.txt")
@@ -397,10 +423,11 @@ def main():
             # We want all common_words_small, and a mix of common_words_large and charged_words
             charged_words_sampled = random.sample(charged_words, int(adv_dict_size/4))
             common_words_sampled= random.sample(common_words_large, int(adv_dict_size/2))
+            where_and_when = get_common_words("where_and_when.txt")
             if only_use_common_words_small:
                 adversarial_words = list(set(common_words_small))
             else:
-                adversarial_words = list(set(charged_words_sampled + common_words_sampled + common_words_small))
+                adversarial_words = list(set(charged_words_sampled + common_words_sampled + common_words_small + where_and_when))
                 adversarial_words.extend(more_words)
             adversarial_words = list(set(adversarial_words))
         else:
@@ -451,6 +478,9 @@ def main():
 
             # TODO: be more clever about which eval examples and questions to use: perhaps use filter method or something else
             trainer_args = [trainer_class, model, training_args, train_dataset_featurized, eval_dataset, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset]
+            parameters_string = ["eval_subset_size: " + str(eval_subset_size) + ", adv_dict_size: " + str(adv_dict_size) + ", filter_questions_based_on_acceptable_question_types:" + str(filter_questions_based_on_acceptable_question_types) + ", acceptable_question_types: " + str(acceptable_question_types)]
+            write_adv_text(parameters_string, "beam_best.txt")
+            write_adv_text(parameters_string, "all_words.txt")
             generate_universal_triggers(universal_trigger_len, adversarial_words, beam_size, trainer_args)
             
             # generate_universal_triggers(universal_trigger_len, all_possible_words, eval_dataset, beam_size, eval_args)
