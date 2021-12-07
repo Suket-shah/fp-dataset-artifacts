@@ -8,13 +8,13 @@ import json
 from generate_adv_examples import *
 import time 
 global eval_subset_size
-eval_subset_size = 50
+eval_subset_size = 16
 universal_trigger_len = 10
 global adv_dict_size
 global filter_questions_based_on_acceptable_question_types
 global only_use_common_words_small
 only_use_common_words_small = True
-filter_questions_based_on_acceptable_question_types = False 
+filter_questions_based_on_acceptable_question_types = True 
 # adv_dict_size= 300
 adv_dict_size= 300
 global error_cnt
@@ -127,10 +127,10 @@ def generate_universal_triggers(universal_trigger_len, all_possible_words, beam_
                     total_loss = get_cross_entropy_loss(universal_trigger_string, trainer_args)
                     # TODO: ensure that list is being copied by value and not by memory reference OR might have to use copy python library
                     new_scenarios.append((universal_trigger_string, total_loss))
-                    if count%100==0 and count!=0:
-                        t4=time.time()
-                        write_adv_text(["100 words took " + str(t4-t3)], "all_words.txt")
-                        t3=time.time()
+                    # if count%100==0 and count!=0:
+                    #     t4=time.time()
+                    #     write_adv_text(["100 words took " + str(t4-t3)], "all_words.txt")
+                    #     t3=time.time()
                 # log_progress(scenarios)
             t2=time.time()
             write_adv_text(["Iteration " +str(i)+" took " + str(t2-t1)],"all_words.txt")
@@ -385,7 +385,7 @@ def main():
             # makes the eval dataset only of length 100 when gen_adv_examples
             if filter_questions_based_on_acceptable_question_types:
                 # acceptable_question_types = ["Why", "Where", "When"]
-                acceptable_question_types = ["Why"]
+                acceptable_question_types = ["Why", "How"]
                 eval_dataset = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types if(ele in example['question'])] != [] ) 
             eval_dataset = eval_dataset.select(range(eval_subset_size)) # TODO 12-4-21: instead of entire range, pick indices better
             

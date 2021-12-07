@@ -185,6 +185,8 @@ def postprocess_qa_predictions(examples,
                                features,
                                predictions: Tuple[np.ndarray, np.ndarray],
                                n_best_size: int = 20):
+    if not predictions:
+        raise ValueError("Null Value for predictions")
     if len(predictions) != 2:
         raise ValueError(
             "`predictions` should be a tuple with two elements (start_logits, end_logits).")
