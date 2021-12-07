@@ -1,0 +1,29 @@
+TODO: Collect scores over 1000 eval examples
+TODO: Reason for bump up halfway is lower sized beam search. Expand dataset might cause something better 
+
+('Why? ', {'eval_exact_match': 40.666666666666664, 'eval_f1': 54.580097302596066})
+
+
+('Why? because ', {'eval_exact_match': 36.666666666666664, 'eval_f1': 48.119593536209926})
+
+
+('Why? because was ', {'eval_exact_match': 32.0, 'eval_f1': 43.060159540553016})
+
+
+('Why? because of : ', {'eval_exact_match': 34.0, 'eval_f1': 45.710700033198776})
+
+
+('Why? because of of this ', {'eval_exact_match': 34.666666666666664, 'eval_f1': 46.19456163775003})
+
+
+('Why? because of of this : ', {'eval_exact_match': 32.0, 'eval_f1': 43.411036733535475})
+
+
+('Why? because of of this : was ', {'eval_exact_match': 30.666666666666668, 'eval_f1': 42.39611298625879})
+
+
+('Why? because of of this of this : ', {'eval_exact_match': 31.333333333333332, 'eval_f1': 42.74437006686881})
+
+
+('Why? because of of this of this : was ', {'eval_exact_match': 30.0, 'eval_f1': 41.24180442072731})
+

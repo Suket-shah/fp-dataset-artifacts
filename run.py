@@ -8,7 +8,7 @@ import json
 from generate_adv_examples import *
 import time 
 global eval_subset_size
-eval_subset_size = 16
+eval_subset_size = 200
 universal_trigger_len = 10
 global adv_dict_size
 global filter_questions_based_on_acceptable_question_types
@@ -386,7 +386,7 @@ def main():
             # makes the eval dataset only of length 100 when gen_adv_examples
             if filter_questions_based_on_acceptable_question_types:
                 # acceptable_question_types = ["Why", "Where", "When"]
-                acceptable_question_types = ["Why", "How"]
+                acceptable_question_types = ["Why"]
                 eval_dataset = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types if(ele in example['question'])] != [] ) 
             eval_dataset = eval_dataset.select(range(eval_subset_size)) # TODO 12-4-21: instead of entire range, pick indices better
             
@@ -458,32 +458,101 @@ def main():
             # adv_examples = generate_adv_examples(eval_args, eval_dataset, 12, adversarial_words, beam_size)
             # write_adv_text(adv_examples)
         else:
-            eval_dataset = eval_dataset.select(range(eval_subset_size))
+            acceptable_question_types1 = ["Why"]
+            acceptable_question_types2 = ["What"]
+            acceptable_question_types3 = ["When"]
+            acceptable_question_types4 = ["Where"]
+            acceptable_question_types5 = ["How"]
+            
+            eval_dataset0 = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types1 if(ele in example['question'])] != [] )  
+            eval_dataset0 = eval_dataset0.select(range(150))
+            eval_dataset1 = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types2 if(ele in example['question'])] != [] )  
+            eval_dataset1 = eval_dataset1.select(range(150))
+            eval_dataset2 = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types3 if(ele in example['question'])] != [] )  
+            eval_dataset2 = eval_dataset2.select(range(150))
+            eval_dataset3 = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types4 if(ele in example['question'])] != [] )  
+            eval_dataset3 = eval_dataset3.select(range(150))
+            eval_dataset4 = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types5 if(ele in example['question'])] != [] )  
+            eval_dataset4 = eval_dataset4.select(range(150))
+            dataset_list = [eval_dataset0, eval_dataset1, eval_dataset2, eval_dataset3, eval_dataset4]
+
+            total_dataset = datasets.concatenate_datasets(dataset_list)
+            #0-150, 200-320, 260-500, 500 - 650, 700-800, 
+            acceptable_question_types = ["Why"]
+            eval_dataset = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types if(ele in example['question'])] != [] )  
+            # TODO eval set of 1000
+            # eval_dataset = eval_dataset.select(list(range(0, 150)))
+
+            # get lists of ranges to calculate f1_score on to avoid nasty indexing bug
+            ranges_of_eval_dataset = [list(range(50*i,50*i+50)) for i in range(100)]
+            text_with_score = []
+
+            # loop through text
             for universal_trigger_str in SEQUENCE_UNIVERSAL_TRIGGERS:
-                adv_text = " " + universal_trigger_str + "To kill american people."
-                modified_dataset = eval_dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": adv_text})
-                modified_eval_dataset_featurized = modified_dataset.map(
-                    prepare_eval_dataset,
-                    batched=True,
-                    num_proc=NUM_PREPROCESSING_WORKERS,
-                    remove_columns=modified_dataset.column_names
-                ) 
-                trainer = trainer_class(
-                    model=model,
-                    args=training_args,
-                    train_dataset=train_dataset_featurized,
-                    eval_dataset=modified_eval_dataset_featurized,
-                    tokenizer=tokenizer,
-                    compute_metrics=compute_metrics_and_store_predictions
-                )
-                # trainer.train()
-                # trainer.save_model()
-                eval_kwargs = {}
-                eval_kwargs['eval_examples'] = modified_dataset
-                results = trainer.evaluate(**eval_kwargs)
-                print('\nEvaluation results:')
-                print(type(results))
-                print(results)
+                scores_without_error = 0
+                f1_score_sum = 0
+
+                # loop through ranges of eval_dataset subsets to calculate f1_score estimate
+                for eval_dataset_range in ranges_of_eval_dataset:
+                    eval_dataset_subset = eval_dataset.select(eval_dataset_range)
+                    adv_text = " " + universal_trigger_str + "To kill american people."
+                    modified_dataset = eval_dataset_subset.map(add_adversarial_text, fn_kwargs={"adversarial_text": adv_text})
+                    modified_eval_dataset_featurized = modified_dataset.map(
+                        prepare_eval_dataset,
+                        batched=True,
+                        num_proc=NUM_PREPROCESSING_WORKERS,
+                        remove_columns=modified_dataset.column_names
+                    )  
+                    trainer = trainer_class(
+                        model=model,
+                        args=training_args,
+                        train_dataset=train_dataset_featurized,
+                        eval_dataset=modified_eval_dataset_featurized,
+                        tokenizer=tokenizer,
+                        compute_metrics=compute_metrics_and_store_predictions
+                    )
+                    eval_kwargs = {}
+                    eval_kwargs['eval_examples'] = modified_dataset
+                    # calculate f1_score on eval_dataset subset
+                    try:
+                        result = trainer.evaluate(**eval_kwargs)
+                        f1_score_sum += result['eval_f1']
+                        scores_without_error+=1
+                    except Exception as e1:
+                        # if error occurs, ignore the range and continue calculations on next range
+                        continue
+                    # stop loop for adv_text once we have calculated f1_score on 1000 examples
+                    if scores_without_error==20:
+                        avg_f1_score = f1_score_sum/scores_without_error
+                        text_with_score.append((adv_text, avg_f1_score))
+                        break
+            print(text_with_score)
+            write_adv_text(text_with_score, "batched_score_calculations.txt")
+            
+            # for universal_trigger_str in SEQUENCE_UNIVERSAL_TRIGGERS:
+            #     adv_text = " " + universal_trigger_str + "To kill american people."
+            #     modified_dataset = eval_dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": adv_text})
+            #     modified_eval_dataset_featurized = modified_dataset.map(
+            #         prepare_eval_dataset,
+            #         batched=True,
+            #         num_proc=NUM_PREPROCESSING_WORKERS,
+            #         remove_columns=modified_dataset.column_names
+            #     ) 
+            #     trainer = trainer_class(
+            #         model=model,
+            #         args=training_args,
+            #         train_dataset=train_dataset_featurized,
+            #         eval_dataset=modified_eval_dataset_featurized,
+            #         tokenizer=tokenizer,
+            #         compute_metrics=compute_metrics_and_store_predictions
+            #     )
+            #     # trainer.train()
+            #     # trainer.save_model()
+            #     eval_kwargs = {}
+            #     eval_kwargs['eval_examples'] = modified_dataset
+            #     results = trainer.evaluate(**eval_kwargs)
+            #     print(results)
+            #     write_adv_text([(universal_trigger_str, results)], "f1_scores_calculations.txt")
 
         # else:
         #     results = trainer.evaluate(**eval_kwargs)

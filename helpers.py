@@ -185,8 +185,6 @@ def postprocess_qa_predictions(examples,
                                features,
                                predictions: Tuple[np.ndarray, np.ndarray],
                                n_best_size: int = 20):
-    if not predictions:
-        raise ValueError("Null Value for predictions")
     if len(predictions) != 2:
         raise ValueError(
             "`predictions` should be a tuple with two elements (start_logits, end_logits).")
@@ -205,16 +203,9 @@ def postprocess_qa_predictions(examples,
 
     # The dictionaries we have to fill.
     all_predictions = collections.OrderedDict()
-    error_cnt = 0
-    # seen_examples = set()
+
     # Let's loop over all the examples!
     for example_index, example in enumerate(tqdm(examples)):
-        if example_index==44:
-            print("debug")
-        # if example_index in seen_examples:
-        #     continue
-        # else:
-        #     seen_examples.add(example_index)
         # Those are the indices of the features associated to the current example.
         feature_indices = features_per_example[example_index]
 
@@ -225,35 +216,15 @@ def postprocess_qa_predictions(examples,
             # We grab the predictions of the model for this feature.
             start_logits = all_start_logits[feature_index]
             end_logits = all_end_logits[feature_index]
-            start_logits = softmax(start_logits)
-            end_logits = softmax(end_logits)
             # This is what will allow us to map some the positions in our logits
             # to span of texts in the original context.
             offset_mapping = features[feature_index]["offset_mapping"]
 
-            character_to_index_of_token = {}
-            # on_first_non_null = True
-            for index_of_logit in range(len(offset_mapping)):
-                range_of_chars = offset_mapping[index_of_logit]
-                if not range_of_chars:
-                    continue
-                # for debugging purposes only
-                # elif on_first_non_null: 
-                #     if range_of_chars[0]>0:
-                #         print("ERROR")
-                #     print("first non null on feature index %d and example_index %d" % (index_of_logit, example_index))
-                #     print(range_of_chars)
-                #     on_first_non_null = False
-                start_index, end_index = range_of_chars
-                for index_char in range(start_index, end_index+1):
-                    character_to_index_of_token[index_char] = index_of_logit
-                    
             # Go through all possibilities for the `n_best_size` greater start and end logits.
             start_indexes = np.argsort(start_logits)[
                             -1: -n_best_size - 1: -1].tolist()
             end_indexes = np.argsort(end_logits)[
                           -1: -n_best_size - 1: -1].tolist()
-                          
             for start_index in start_indexes:
                 for end_index in end_indexes:
                     # Don't consider out-of-scope answers, either because the indices are out of bounds or correspond
@@ -298,27 +269,9 @@ def postprocess_qa_predictions(examples,
             predictions.insert(0, {"text": "empty", "start_logit": 0.0,
                                    "end_logit": 0.0, "score": 0.0})
 
-        try:
-            # THere seems to be some issue where offset_mapping does not include all tokens
-            indices_start_logit = [character_to_index_of_token[example['answers']['answer_start'][i]] for i in range(len(example['answers']['answer_start']))]
-            indices_end_logit = [character_to_index_of_token[ example['answers']['answer_start'][i] -1 + len(example['answers']['text'][i]) ] for i in range(len(example['answers']['answer_start']))]
-            index_start_logit_begin_target_span = character_to_index_of_token[len(example['context'])-24]
-            index_end_logit_end_target_span = character_to_index_of_token[len(example['context'])-2]
-            target_span_score = start_logits[index_start_logit_begin_target_span] + end_logits[index_end_logit_end_target_span]
-            all_predictions[example["id"]] = max([start_logits[indices_start_logit[i]] + end_logits[indices_end_logit[i]] - target_span_score for i in range(len(example['answers']['answer_start']))] )
-        except Exception as e:
-            # rare exception case where offset_mapping does not contain all values because feature_indices>1
-            # error_cnt+=1
-            assert(len(feature_indices)>1)
-            continue
-            # print(" offset mapping is split because of len(feature_indices)>1. error cnt %d" % error_cnt)
-            # if not isinstance( all_predictions[example["id"]], np.float32 ):
-            #     all_predictions[example["id"]] = 0
-            # else:
-            #     print("already have val here")
-        # all_predictions[example["id"]] = predictions[0]["score"]
-        # TODO suket: find out how to correctly send the score variables for all predictions. The code as is does not send "score"
+        all_predictions[example["id"]] = predictions[0]["text"]
     return all_predictions
+
 
 
 # Adapted from https://github.com/huggingface/transformers/blob/master/examples/pytorch/question-answering/trainer_qa.py

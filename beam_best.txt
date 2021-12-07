@@ -80,7 +80,7 @@ Iteration 3 took 8330.924269199371
 Iteration 4 took 8318.225641012192
 
 
-('long over for ; : ', 1.2265836)
+('long over fo'r ; : , 1.2265836)
 ('long at for ; : ', 1.2269027)
 ('long on for ; : ', 1.22692)
 ('long on for ; ; ', 1.2279017)
