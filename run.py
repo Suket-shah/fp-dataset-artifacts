@@ -476,15 +476,13 @@ def main():
             eval_dataset4 = eval_dataset4.select(range(150))
             dataset_list = [eval_dataset0, eval_dataset1, eval_dataset2, eval_dataset3, eval_dataset4]
 
-            total_dataset = datasets.concatenate_datasets(dataset_list)
+            eval_dataset = datasets.concatenate_datasets(dataset_list)
             #0-150, 200-320, 260-500, 500 - 650, 700-800, 
-            acceptable_question_types = ["Why"]
-            eval_dataset = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types if(ele in example['question'])] != [] )  
             # TODO eval set of 1000
             # eval_dataset = eval_dataset.select(list(range(0, 150)))
 
             # get lists of ranges to calculate f1_score on to avoid nasty indexing bug
-            ranges_of_eval_dataset = [list(range(50*i,50*i+50)) for i in range(100)]
+            ranges_of_eval_dataset = [list(range(750))]
             text_with_score = []
 
             # loop through text

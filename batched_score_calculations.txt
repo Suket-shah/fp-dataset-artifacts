@@ -1,4 +1,4 @@
-Utilizing original 1000 examples. acceptable_question_types=["Why"]. 
+Utilizing original 150 examples. acceptable_question_types=["Why"]. 
 (' Why? To kill american people.', 54.98696886562175)
 (' Why? because To kill american people.', 48.48829497415375)
 (' Why? because was To kill american people.', 43.45154287348524)
@@ -19,4 +19,6 @@ Utilizing original 1000 examples. acceptable_question_types=["Why", "Who", "When
 (' Why? because of of this : was To kill american people.', 83.63641890724702)
 (' Why? because of of this of this : To kill american people.', 83.21642693946248)
 (' Why? because of of this of this : was To kill american people.', 83.26060687717184)
+
+
 
