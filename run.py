@@ -28,6 +28,7 @@ import copy
 import re
 
 NUM_PREPROCESSING_WORKERS = 2
+SEQUENCE_UNIVERSAL_TRIGGERS = ["Why? ", "Why? because ", "Why? because was ", "Why? because of : ", "Why? because of of this ", "Why? because of of this : ", "Why? because of of this : was ", "Why? because of of this of this : ", "Why? because of of this of this : was "]
 
 # file name is either all_words.txt or beam_best.txt
 def write_adv_text(adv_examples, file_name):
@@ -279,7 +280,7 @@ def main():
                       help='Limit the number of examples to train on.')
     argp.add_argument('--max_eval_samples', type=int, default=None,
                       help='Limit the number of examples to evaluate on.')
-    argp.add_argument('--gen_adv_examples', type=bool, default=True,
+    argp.add_argument('--gen_adv_examples', type=bool, default=False,
                       help='Limit the number of examples to evaluate on.')
     argp.add_argument('--use_subset_train_examples', type=bool, default=True,
                         help='Limit the number of examples to train on.')
@@ -375,7 +376,7 @@ def main():
     # For an example of a valid compute_metrics function, see compute_accuracy in helpers.py.
     # compute_metrics = lambda eval_preds: metric.compute(
     #             predictions=eval_preds.predictions, references=eval_preds.label_ids)
-    compute_metrics = compute_distance_off
+    compute_metrics=compute_distance_off
     if args.task == 'qa':
         # For QA, we need to use a tweaked version of the Trainer (defined in helpers.py)
         # to enable the question-answering specific evaluation metrics
@@ -456,6 +457,34 @@ def main():
             # generate_universal_triggers(universal_trigger_len, all_possible_words, eval_dataset, beam_size, eval_args)
             # adv_examples = generate_adv_examples(eval_args, eval_dataset, 12, adversarial_words, beam_size)
             # write_adv_text(adv_examples)
+        else:
+            eval_dataset = eval_dataset.select(range(eval_subset_size))
+            for universal_trigger_str in SEQUENCE_UNIVERSAL_TRIGGERS:
+                adv_text = " " + universal_trigger_str + "To kill american people."
+                modified_dataset = eval_dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": adv_text})
+                modified_eval_dataset_featurized = modified_dataset.map(
+                    prepare_eval_dataset,
+                    batched=True,
+                    num_proc=NUM_PREPROCESSING_WORKERS,
+                    remove_columns=modified_dataset.column_names
+                ) 
+                trainer = trainer_class(
+                    model=model,
+                    args=training_args,
+                    train_dataset=train_dataset_featurized,
+                    eval_dataset=modified_eval_dataset_featurized,
+                    tokenizer=tokenizer,
+                    compute_metrics=compute_metrics_and_store_predictions
+                )
+                # trainer.train()
+                # trainer.save_model()
+                eval_kwargs = {}
+                eval_kwargs['eval_examples'] = modified_dataset
+                results = trainer.evaluate(**eval_kwargs)
+                print('\nEvaluation results:')
+                print(type(results))
+                print(results)
+
         # else:
         #     results = trainer.evaluate(**eval_kwargs)
 

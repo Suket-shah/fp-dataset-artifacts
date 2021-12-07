@@ -1,2 +1,6 @@
 *.pyc
 output/
+trained_model/
+saved_dataset/
+*.json
+*.jsonl
