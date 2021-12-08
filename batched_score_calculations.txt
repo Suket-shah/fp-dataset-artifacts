@@ -9,7 +9,7 @@ Utilizing original 150 examples. acceptable_question_types=["Why"].
 (' Why? because of of this of this : To kill american people.', 43.119963926116824)
 (' Why? because of of this of this : was To kill american people.', 41.59018666433492)
 
-Utilizing original 1000 examples. acceptable_question_types=["Why", "Who", "When", "Where", "How"]. 
+Utilizing all example types. acceptable_question_types=["Why", "Who", "When", "Where", "How"]. 
 (' Why? To kill american people.', 84.32323818377373)
 (' Why? because To kill american people.', 83.14490392429396)
 (' Why? because was To kill american people.', 83.34088779336605)
@@ -20,5 +20,14 @@ Utilizing original 1000 examples. acceptable_question_types=["Why", "Who", "When
 (' Why? because of of this of this : To kill american people.', 83.21642693946248)
 (' Why? because of of this of this : was To kill american people.', 83.26060687717184)
 
-
+Utilizing normalized example types. acceptable_question_types=["Why", "Who", "When", "Where", "How"]. 
+(' Why? To kill american people.', 80.06461443279842)
+(' Why? because To kill american people.', 78.30342412557094)
+(' Why? because was To kill american people.', 77.56115196017186)
+(' Why? because of : To kill american people.', 77.96953864286193)
+(' Why? because of of this To kill american people.', 77.99756663620433)
+(' Why? because of of this : To kill american people.', 77.10641721091699)
+(' Why? because of of this : was To kill american people.', 77.33483106286025)
+(' Why? because of of this of this : To kill american people.', 76.81508322326721)
+(' Why? because of of this of this : was To kill american people.', 77.02689332636214)
 

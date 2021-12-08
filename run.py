@@ -520,10 +520,8 @@ def main():
                         # if error occurs, ignore the range and continue calculations on next range
                         continue
                     # stop loop for adv_text once we have calculated f1_score on 1000 examples
-                    if scores_without_error==20:
-                        avg_f1_score = f1_score_sum/scores_without_error
-                        text_with_score.append((adv_text, avg_f1_score))
-                        break
+                    avg_f1_score = f1_score_sum/scores_without_error
+                    text_with_score.append((adv_text, avg_f1_score))
             print(text_with_score)
             write_adv_text(text_with_score, "batched_score_calculations.txt")
             
