@@ -1,4 +1,4 @@
-Utilizing original 150 examples. acceptable_question_types=["Why"]. 
+Utilizing small vocab. trained with "why" questions. Evaluated on acceptable_question_types=["Why"]. 
 BASELINE
 (' To kill american people.', 66.11831950019113)
 FULL TEST
@@ -12,18 +12,7 @@ FULL TEST
 (' Why? because of of this of this : To kill american people.', 43.119963926116824)
 (' Why? because of of this of this : was To kill american people.', 41.59018666433492)
 
-Utilizing all example types. acceptable_question_types=["Why", "Who", "When", "Where", "How"]. 
-(' Why? To kill american people.', 84.32323818377373)
-(' Why? because To kill american people.', 83.14490392429396)
-(' Why? because was To kill american people.', 83.34088779336605)
-(' Why? because of : To kill american people.', 83.63591041780045)
-(' Why? because of of this To kill american people.', 83.40921064698303)
-(' Why? because of of this : To kill american people.', 83.36059953587191)
-(' Why? because of of this : was To kill american people.', 83.63641890724702)
-(' Why? because of of this of this : To kill american people.', 83.21642693946248)
-(' Why? because of of this of this : was To kill american people.', 83.26060687717184)
-
-Utilizing normalized example types. acceptable_question_types=["Why", "Who", "When", "Where", "How"]. 
+Utilizing small vocab. trained with "why" questions. Evaluated on acceptable_question_types=["Why", "Who", "When", "Where", "How"]. 
 BASELINE
 (' To kill american people.', 82.43097941103795)
 FULL TEST
