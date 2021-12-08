@@ -239,5 +239,113 @@ Iteration 8 took 5592.234649896622
 ("Why? Because of of this of this : ' ", -0.27463832)
 
 
-eval_subset_size: 16, adv_dict_size: 300, filter_questions_based_on_acceptable_question_types:True, acceptable_question_types: ['Why']
+
+eval_subset_size: 8, adv_dict_size: 300, filter_questions_based_on_acceptable_question_types:True, acceptable_question_types: ['Why']
+
+
+('Why? ', 0.82126844)
+('because ', 0.8990346)
+('Because ', 0.8990346)
+('this ', 0.90794545)
+('these ', 0.91132534)
+('is ', 0.9149085)
+('" ', 0.9197762)
+('as ', 0.92025554)
+
+
+Iteration 0 took 1068.41481924057
+
+
+Iteration 1 took 8416.76843714714
+
+
+('Why? because ', 0.40725055)
+('Why? Because ', 0.40725055)
+('Why? is ', 0.6147548)
+('Why? was ', 0.6261642)
+('Why? as ', 0.63401437)
+('Why? due ', 0.6357037)
+('Why? for ', 0.70171833)
+("Why? ' ", 0.7133543)
+
+
+Iteration 2 took 8348.33206486702
+
+
+('Why? because was ', 0.14991638)
+('Why? Because was ', 0.14991638)
+('Why? because is ', 0.18275063)
+('Why? Because is ', 0.18275063)
+('Why? because of ', 0.22852959)
+('Why? Because of ', 0.22852959)
+('Why? because : ', 0.2836092)
+('Why? Because : ', 0.2836092)
+
+
+eval_subset_size: 20, adv_dict_size: 200, filter_questions_based_on_acceptable_question_types:True, acceptable_question_types: ['Why', 'What', 'When', 'Where', 'How']
+
+
+('short ', 1.2469504)
+('for ', 1.3266631)
+('Why? ', 1.3628207)
+('as ', 1.366306)
+('is ', 1.3663837)
+('of ', 1.3694111)
+('it ', 1.3755628)
+('this ', 1.375869)
+
+
+Iteration 0 took 2162.5754029750824
+
+
+Iteration 1 took 17320.434734106064
+
+
+('short . ', 1.220645)
+('short Why? ', 1.2235018)
+('of short ', 1.2278736)
+('short ; ', 1.2329246)
+('short since ', 1.233051)
+('short by ', 1.2346835)
+('short ? ', 1.2349484)
+('short ! ', 1.2350079)
+
+
+Iteration 2 took 17639.09112095833
+
+
+('short . Why? ', 1.1954814)
+('short . " ', 1.2059699)
+('of short . ', 1.206806)
+('short ! " ', 1.2086179)
+("short . ' ", 1.2091684)
+('short . : ', 1.2100234)
+('short . for ', 1.212617)
+('short Why? " ', 1.2127463)
+
+
+Iteration 3 took 17258.602140903473
+
+
+('short . Why? Because ', 1.1214274)
+('short . Why? because ', 1.1214274)
+('short . Why? " ', 1.1570873)
+("short . Why? ' ", 1.1629779)
+('short . Why? for ', 1.1683381)
+('short . Why? ? ', 1.171173)
+('short . Why? . ', 1.1724709)
+('short . Why? since ', 1.1758324)
+
+
+Iteration 4 took 17350.02067875862
+
+
+("short . Why? ' Because ", 1.0349221)
+("short . Why? ' because ", 1.0349221)
+('short . Why? " Because ', 1.0571326)
+('short . Why? " because ', 1.0571326)
+('short . Why? ? Because ', 1.0580118)
+('short . Why? ? because ', 1.0580118)
+('short . Why? . Because ', 1.0631198)
+('short . Why? . because ', 1.0631198)
 

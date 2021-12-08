@@ -33,7 +33,7 @@ def plot_results(results):
 # #                 length_adv_texts[1],f1_scores[1],
 # # plt.set_title('line plot with data points')
 # plt.show()
-plot_result_param = [("Generated using small Vocabulary with Why questions Only ",  [.8,.7,.6,.65,.68,.5,.2]),
+plot_result_param = [("Generated using Small Vocabulary with Why questions Only",  [.8,.7,.6,.65,.68,.5,.2]),
                      ("Generated using large Vocabulary with all questions types",       [.1,.7,.6,.65,.68,.5,.2]),
                      ("Generated using small Vocabulary with all questions types",  [.9,.8,.6,.65,.68,.5,.2])
                     ]
