@@ -1,4 +1,7 @@
 Utilizing original 150 examples. acceptable_question_types=["Why"]. 
+BASELINE
+(' To kill american people.', 66.11831950019113)
+FULL TEST
 (' Why? To kill american people.', 54.98696886562175)
 (' Why? because To kill american people.', 48.48829497415375)
 (' Why? because was To kill american people.', 43.45154287348524)
@@ -21,6 +24,9 @@ Utilizing all example types. acceptable_question_types=["Why", "Who", "When", "W
 (' Why? because of of this of this : was To kill american people.', 83.26060687717184)
 
 Utilizing normalized example types. acceptable_question_types=["Why", "Who", "When", "Where", "How"]. 
+BASELINE
+(' To kill american people.', 82.43097941103795)
+FULL TEST
 (' Why? To kill american people.', 80.06461443279842)
 (' Why? because To kill american people.', 78.30342412557094)
 (' Why? because was To kill american people.', 77.56115196017186)

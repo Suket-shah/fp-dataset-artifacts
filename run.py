@@ -28,7 +28,7 @@ import copy
 import re
 
 NUM_PREPROCESSING_WORKERS = 2
-SEQUENCE_UNIVERSAL_TRIGGERS = ["Why? ", "Why? because ", "Why? because was ", "Why? because of : ", "Why? because of of this ", "Why? because of of this : ", "Why? because of of this : was ", "Why? because of of this of this : ", "Why? because of of this of this : was "]
+SEQUENCE_UNIVERSAL_TRIGGERS = [""]
 
 # file name is either all_words.txt or beam_best.txt
 def write_adv_text(adv_examples, file_name):
@@ -478,6 +478,8 @@ def main():
 
             eval_dataset = datasets.concatenate_datasets(dataset_list)
             #0-150, 200-320, 260-500, 500 - 650, 700-800, 
+            # acceptable_question_types = ["Why"]
+            # eval_dataset = eval_dataset.filter(lambda example: [ele for ele in acceptable_question_types if(ele in example['question'])] != [] )  
             # TODO eval set of 1000
             # eval_dataset = eval_dataset.select(list(range(0, 150)))
 
@@ -493,7 +495,7 @@ def main():
                 # loop through ranges of eval_dataset subsets to calculate f1_score estimate
                 for eval_dataset_range in ranges_of_eval_dataset:
                     eval_dataset_subset = eval_dataset.select(eval_dataset_range)
-                    adv_text = " " + universal_trigger_str + "To kill american people."
+                    adv_text = " " + "To kill american people."
                     modified_dataset = eval_dataset_subset.map(add_adversarial_text, fn_kwargs={"adversarial_text": adv_text})
                     modified_eval_dataset_featurized = modified_dataset.map(
                         prepare_eval_dataset,
