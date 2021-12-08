@@ -31,3 +31,11 @@ Utilizing normalized example types. acceptable_question_types=["Why", "Who", "Wh
 (' Why? because of of this of this : To kill american people.', 76.81508322326721)
 (' Why? because of of this of this : was To kill american people.', 77.02689332636214)
 
+Utilizing large vocab. Trained with all questions. Evaluated on acceptable_question_types=["Why", "Who", "When", "Where", "How"].
+(' for To kill american people.', 81.77108180562965)
+(' long for To kill american people.', 83.92625771470924)
+(' long over for To kill american people.', 83.64740261918747)
+(' long : for ; To kill american people.', 83.75107733952886)
+(' long over for ; : To kill american people.', 83.82070696915848)
+(' long on for ; ; : To kill american people.', 83.68044434289585)
+

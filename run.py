@@ -28,7 +28,8 @@ import copy
 import re
 
 NUM_PREPROCESSING_WORKERS = 2
-SEQUENCE_UNIVERSAL_TRIGGERS = ["Why? ", "Why? because ", "Why? because was ", "Why? because of : ", "Why? because of of this ", "Why? because of of this : ", "Why? because of of this : was ", "Why? because of of this of this : ", "Why? because of of this of this : was "]
+SEQUENCE_UNIVERSAL_TRIGGERS = ["for ", "long for ", "long over for ", "long : for ; ", "long over for ; : " , "long on for ; ; : "]
+
 
 # file name is either all_words.txt or beam_best.txt
 def write_adv_text(adv_examples, file_name):
