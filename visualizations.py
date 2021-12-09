@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 # outer_tuple[0]  is a string describing the parameters used to generate the adversarial text
 # outer_tuple[1] is a list of tuples, with inner_tuple[0] as the adv text string, and inner_tuple[1] as the f1 score 
 # ex: 
-def plot_results(results):
+def plot_results(results, why_questions):
     color_list = ["b","g","r","c","m","k"]
     for i, outer_tuple in enumerate(results):
         description_text_generation_method =outer_tuple[0]
@@ -22,49 +22,48 @@ def plot_results(results):
     # plt.show()
     # line1, = plt.plot([1, 2, 3], label="large dataset with ")
     # line2, = plt.plot([3, 2, 1], label="line2")
-    leg = plt.legend(loc='upper center')
+    # leg = plt.legend(loc='right')
+    plt.legend(loc=(.4, .55))
     plt.title('Adversarial Text Generation with Beam Search')
     plt.xlabel("Universal Trigger Length")
-    plt.ylabel("F1 Score")
+    if why_questions:
+        plt.ylabel("F1 Score Calculated on \'Why\' Questions")
+    else:
+        plt.ylabel("F1 Score Calculated on \n['Why', 'What', 'When', 'Where', 'How'] Questions")
     plt.show()
-# plt.plot(1,0,2,4)
-# plt.plot([1, 2, 3], [4, 2, 1], 'go-', label='line 1', linewidth=2)
-# plt.plot([1, 2, 3], [1, 4, 9], 'rs', label='line 2')
-# #                 length_adv_texts[1],f1_scores[1],
-# # plt.set_title('line plot with data points')
-# plt.show()
-plot_result_param = [("Generated using Small Vocabulary with Why questions Only",  [.8,.7,.6,.65,.68,.5,.2]),
-                     ("Generated using large Vocabulary with all questions types",       [.1,.7,.6,.65,.68,.5,.2]),
-                     ("Generated using small Vocabulary with all questions types",  [.9,.8,.6,.65,.68,.5,.2])
-                    ]
 
-plot_results(plot_result_param)
+# plot_result_param = [("Generated using Small Vocabulary with Why questions Only",  [.8,.7,.6,.65,.68,.5,.2]),
+#                      ("Generated using large Vocabulary with all questions types",       [.1,.7,.6,.65,.68,.5,.2]),
+#                      ("Generated using small Vocabulary with all questions types",  [.9,.8,.6,.65,.68,.5,.2])
+#                     ]
 
 
+# evaluated_multiple_question_types = [   ("Generated using Small Vocabulary with Why questions Only",    [82.43, 80.06, 78.30, 77.56, 77.96, 77.99, 77.10, 77.33, 76.81, 77.02]),
+#         ("Generated using Large Vocabulary with All questions types",   [82.43, 84.02, 82.97, 80.12, 78.46]                         ),
+#         ("Generated using Small Vocabulary with All questions types",   [82.43, 81.77, 83.92, 83.64, 83.75,83.8, 83.68]             ),
+#         ("Randomly Generated Words",                                    [82.43, 83.60, 83.92, 83.73, 83.96, 83.81]                  ),
+#         ("Wallace Suggested Universal Trigger",                        [82.43, 82.51, 82.19, 81.75]                                 )
+#     ]
 
-# # # get lists of ranges to calculate f1_score on to avoid nasty indexing bug
-# # ranges_of_eval_dataset = [list(range(50*i,50*i+50)) for i in range(100)]
-# # text_with_score = []
-# # all_adv_texts = ["Why", "Why Because"]
+# evaluated_why_questions_only = [   ("Generated using Small Vocabulary with Why questions Only",    [66.11, 54.98, 48.48, 43.45, 46.14, 46.50, 43.81, 42.68, 43.11, 41.59]),
+#         ("Generated using Large Vocabulary with All questions types",   [66.11, 72.88, 67.68, 55.00, 48.93]                         ),
+#         ("Generated using Small Vocabulary with All questions types",   [66.11, 69.74, 68.52, 58.64, 53.75, 53.81, 53.65]           ),
+#         ("Randomly Generated Words",                                    [66.11, 71.68, 72.23, 72.21, 72.18, 72.18]                  ),
+#         ("Wallace Suggested Universal Trigger",                        [66.11, 65.01, 64.42, 62.07]                                 )
+#     ]
+evaluated_multiple_question_types = [   ("Generated using Small Vocabulary with Why questions Only",    [82.43, 80.06, 78.30, 77.56, 77.96, 77.99]),
+        ("Generated using Large Vocabulary with All questions types",   [82.43, 84.02, 82.97, 80.12, 78.46]                         ),
+        ("Generated using Small Vocabulary with All questions types",   [82.43, 81.77, 83.92, 83.64, 83.75,83.8]             ),
+        ("Randomly Generated Words",                                    [82.43, 83.60, 83.92, 83.73, 83.96, 83.81]                  ),
+        ("Wallace Suggested Universal Trigger",                        [82.43, 82.51, 82.19, 81.75]                                 )
+    ]
 
-# # # loop through text
-# # for adv_text in all_adv_texts:
-# #     scores_without_error = 0
-# #     f1_score_sum = 0
-# #     # loop through ranges of eval_dataset subsets to calculate f1_score estimate
-# #     for range in ranges_of_eval_dataset:
-# #         eval_dataset = eval_dataset.select(range)
+evaluated_why_questions_only = [   ("Generated using Small Vocabulary with Why questions Only",    [66.11, 54.98, 48.48, 43.45, 46.14, 46.50]),
+        ("Generated using Large Vocabulary with All questions types",   [66.11, 72.88, 67.68, 55.00, 48.93]                         ),
+        ("Generated using Small Vocabulary with All questions types",   [66.11, 69.74, 68.52, 58.64, 53.75, 53.81]           ),
+        ("Randomly Generated Words",                                    [66.11, 71.68, 72.23, 72.21, 72.18, 72.18]                  ),
+        ("Wallace Suggested Universal Trigger",                        [66.11, 65.01, 64.42, 62.07]                                 )
+    ]
 
-# #         # calculate f1_score on eval_dataset subset
-# #         try:
-# #             result = 10 # TODO suket replace with actual evaluate call
-# #             f1_score_sum.append(result)
-# #             scores_without_error+=1
-# #         except Exception as e1:
-# #             # if error occurs, ignore the range and continue calculations on next range
-# #             continue
-# #         # stop loop for adv_text once we have calculated f1_score on 1000 examples
-# #         if scores_without_error==20:
-# #             avg_f1_score = f1_score_sum/scores_without_error
-# #             text_with_score.append((adv_text, avg_f1_score))
-# #             break
+plot_results(evaluated_why_questions_only, why_questions = True)
+plot_results(evaluated_multiple_question_types, why_questions = False)
