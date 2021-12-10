@@ -7,6 +7,49 @@ from typing import Tuple
 from tqdm.auto import tqdm
 from scipy.special import softmax
 
+import requests as r
+import re
+
+
+# param is either "1000_common_words.txt" or "common_words.txt"
+def get_common_words(file_name):
+    a_file = open(file_name, "r")
+    common_words = []
+    for line in a_file:
+        stripped_line = line.strip()
+        common_words.append(stripped_line)
+    a_file.close()
+    return(common_words)
+
+def get_charged_words(num_words=100):
+    # url ="https://raw.githubusercontent.com/fnielsen/afinn/master/afinn/data/AFINN-111.txt"
+    a_file = open("AFINN-111.txt", "r")
+    common_words = []
+    word_to_score={}
+    valid_cnt=0
+    error_cnt=0
+    for line in a_file:
+        stripped_line = line.strip()
+        score = re.findall('[-0-9]+', line)
+        score = str(score[0])
+        line_split = line.split()
+        word= line_split[0] 
+        score_2 = line_split[1]
+        score_2=str(score_2)
+        
+        if score_2==score:
+            word_to_score[word]=score
+            valid_cnt+=1
+        else:
+            error_cnt+=1
+        # print(score_2)
+    num_words=int(num_words/2)
+    biggest_items = sorted(word_to_score.items(), reverse=True)[0:num_words]
+    smallest_items=sorted(word_to_score.items())[0:num_words]
+    charged_words = [x[0] for x in biggest_items] + [x[0] for x in smallest_items]
+    return charged_words
+
+    
 QA_MAX_ANSWER_LENGTH = 30
 
 
@@ -37,26 +80,11 @@ def compute_accuracy(eval_preds: EvalPrediction):
     }
 
 def compute_distance_off(eval_preds: EvalPrediction):
-
-    # ids = [eval_preds.predictions[i]['id'] for i in range(len(eval_preds))]
-    # example_in_question = eval_dataset.filter(lambda example: example['id']=="56be4db0acb8001400a502ec")
-    # prev_answer = (np.argmax(
-    #         eval_preds.predictions,
-    #         axis=1) == eval_preds.label_ids).astype(
-            # np.float32).mean().item()
-    # return {
-    #     'CrossEntropyLoss': (np.argmax(
-    #         eval_preds.predictions,
-    #         axis=1) == eval_preds.label_ids).astype(
-    #         np.float32).mean().item()
-    # }
     predictions = [eval_preds.predictions[i]['prediction_text'] for i in range(len(eval_preds.predictions))]
-    # # TODO: 11-30-21 predictions is way too long: find out why of length 10570 because that is likely slowing down performance
     predictions_mean= np.mean(predictions)
     return {
         'CrossEntropyLoss': predictions_mean
     }
-    raise NotImplementedError("Not implemented") # TODO suket: modify this method after you have changed eval_preds
 
 # This function preprocesses a question answering dataset, tokenizing the question and context text
 # and finding the right offsets for the answer spans in the tokenized context (to use as labels).
@@ -205,16 +233,7 @@ def postprocess_qa_predictions(examples,
 
     # The dictionaries we have to fill.
     all_predictions = collections.OrderedDict()
-    error_cnt = 0
-    # seen_examples = set()
-    # Let's loop over all the examples!
     for example_index, example in enumerate(tqdm(examples)):
-        if example_index==44:
-            print("debug")
-        # if example_index in seen_examples:
-        #     continue
-        # else:
-        #     seen_examples.add(example_index)
         # Those are the indices of the features associated to the current example.
         feature_indices = features_per_example[example_index]
 
@@ -237,13 +256,6 @@ def postprocess_qa_predictions(examples,
                 range_of_chars = offset_mapping[index_of_logit]
                 if not range_of_chars:
                     continue
-                # for debugging purposes only
-                # elif on_first_non_null: 
-                #     if range_of_chars[0]>0:
-                #         print("ERROR")
-                #     print("first non null on feature index %d and example_index %d" % (index_of_logit, example_index))
-                #     print(range_of_chars)
-                #     on_first_non_null = False
                 start_index, end_index = range_of_chars
                 for index_char in range(start_index, end_index+1):
                     character_to_index_of_token[index_char] = index_of_logit
@@ -311,13 +323,7 @@ def postprocess_qa_predictions(examples,
             # error_cnt+=1
             assert(len(feature_indices)>1)
             continue
-            # print(" offset mapping is split because of len(feature_indices)>1. error cnt %d" % error_cnt)
-            # if not isinstance( all_predictions[example["id"]], np.float32 ):
-            #     all_predictions[example["id"]] = 0
-            # else:
-            #     print("already have val here")
-        # all_predictions[example["id"]] = predictions[0]["score"]
-        # TODO suket: find out how to correctly send the score variables for all predictions. The code as is does not send "score"
+
     return all_predictions
 
 
@@ -356,7 +362,6 @@ class QuestionAnsweringTrainer(Trainer):
         if self.compute_metrics is not None:
             # post process the raw predictions to get the final prediction
             # (from start_logits, end_logits to an answer string)
-            # TODO have it return score as well
             eval_preds = postprocess_qa_predictions(eval_examples,
                                                     eval_dataset,
                                                     output.predictions)
@@ -383,4 +388,4 @@ class QuestionAnsweringTrainer(Trainer):
         self.control = self.callback_handler.on_evaluate(self.args, self.state,
                                                          self.control, metrics)
         # return the score as part of metrics
-        return metrics # TODO Suket: does this need to be modified?
+        return metrics

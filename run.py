@@ -2,8 +2,7 @@ import datasets
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, \
     AutoModelForQuestionAnswering, Trainer, TrainingArguments, HfArgumentParser
 from helpers import prepare_dataset_nli, prepare_train_dataset_qa, \
-    prepare_validation_dataset_qa, QuestionAnsweringTrainer, compute_accuracy, compute_distance_off
-from generate_adv_examples import *
+    prepare_validation_dataset_qa, QuestionAnsweringTrainer, compute_accuracy, compute_distance_off, get_common_words, get_charged_words
 import time 
 import random
 import os
@@ -13,6 +12,7 @@ import json
 # import re
 
 
+# Parameters for generating adversarial text
 global eval_subset_size
 global adv_dict_size
 global filter_questions_based_on_acceptable_question_types
@@ -43,28 +43,6 @@ def write_adv_text(adv_examples, file_name):
         file1.write(str(example) +"\n")
     file1.write("\n")
     file1.close()
-
-# def log_progress(adv_examples):
-#     # TODO implement with logging library
-#     return 0
-
-# TODO modify parameters
-# Need implement a function that returns the predicted answer with a specific universal trigger and target span added to context
-# def make_prediction(example, universal_trigger_string, eval_args):
-#     raise NotImplementedError()
-
-# def calc_total_loss(universal_trigger_string, subset_of_examples, eval_args):
-#     # return random.randrange(10)
-#     total_loss = 0
-#     for example in subset_of_examples:
-#         paragraph = example['context']
-#         target_span= example['answers'][0] # TODO use more than val at index 0 for answer
-#         # target_index_start = example['answer_start'][0] 
-#         # target_index_end = target_index_start + len(target_span)
-#         prediction = make_prediction(example, universal_trigger_string, eval_args)
-#         loss = calc_loss(universal_trigger_string, target_span, paragraph)
-#         total_loss += loss
-#     return total_loss
 
 def get_cross_entropy_loss(universal_trigger_string, trainer_args):
     trainer_class, model, training_args, train_dataset_featurized, eval_dataset, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset = trainer_args
@@ -113,13 +91,13 @@ def generate_universal_triggers(universal_trigger_len, all_possible_words, beam_
             scenarios.sort(key = lambda x: x[1])
             # all_words.txt or beam_best.txt
             # trim scenarios to length of beam size
-            write_adv_text(scenarios, "all_words.txt")
+            write_adv_text(scenarios, "generated_triggers/all_words.txt")
             if len(scenarios)>beam_size:
                 scenarios = scenarios[0:beam_size] # check if need reverse=True
-            write_adv_text(scenarios, "beam_best.txt")
+            write_adv_text(scenarios, "generated_triggers/beam_best.txt")
             t2=time.time()
-            write_adv_text(["Iteration 0 took " + str(t2-t1)], "all_words.txt")
-            write_adv_text(["Iteration 0 took " + str(t2-t1)], "beam_best.txt")
+            write_adv_text(["Iteration 0 took " + str(t2-t1)], "generated_triggers/all_words.txt")
+            write_adv_text(["Iteration 0 took " + str(t2-t1)], "generated_triggers/beam_best.txt")
         else:
             # use beam search 
             previous_k_best_universal_triggers = [scenarios[i][0] for i in range(len(scenarios))]
@@ -139,115 +117,20 @@ def generate_universal_triggers(universal_trigger_len, all_possible_words, beam_
                     #     t3=time.time()
                 # log_progress(scenarios)
             t2=time.time()
-            write_adv_text(["Iteration " +str(i)+" took " + str(t2-t1)],"all_words.txt")
-            write_adv_text(["Iteration " +str(i)+" took " + str(t2-t1)],"beam_best.txt")
+            write_adv_text(["Iteration " +str(i)+" took " + str(t2-t1)],"generated_triggers/all_words.txt")
+            write_adv_text(["Iteration " +str(i)+" took " + str(t2-t1)],"generated_triggers/beam_best.txt")
             scenarios = sorted(new_scenarios, key = lambda x: x[1])
-            write_adv_text(scenarios, "all_words.txt")
+            write_adv_text(scenarios, "generated_triggers/all_words.txt")
             # trim scenarios to length of beam size
             if len(scenarios)>beam_size:
                 scenarios = scenarios[0:beam_size] # check if need reverse=True
-            write_adv_text(scenarios, "beam_best.txt")
+            write_adv_text(scenarios, "generated_triggers/beam_best.txt")
 
-
-# def calc_loss(output_span, target_span, paragraph):
-#     # return random.randrange(10)
-#     # loss = torch.nn.CrossEntropyLoss()
-#     first_output = output_span.split(' ')[0]
-#     last_output = output_span.split(' ')[-1]
-#     first_target = target_span.split(' ')[0]
-#     last_target = target_span.split(' ')[-1]
-#     output_start_index = re.search(r'\b({})\b'.format(first_output), paragraph).start()
-#     output_end_index = re.search(r'\b({})\b'.format(last_output), paragraph).end()
-#     target_start_index = re.search(r'\b({})\b'.format(first_target), paragraph).start() 
-#     target_end_index = re.search(r'\b({})\b'.format(last_target), paragraph).start() 
-#     print(output_start_index)
-#     start_loss = target_start_index - output_start_index
-#     end_loss = target_end_index - output_end_index
-#     # TODO continue full implementation
-#     return start_loss + end_loss
-
-    # raise NotImplementedError("Have Suket implement")
-
-
-# def replace_context_with_adv_text(example, adversarial_text):
-#     example['context'] = adversarial_text
-#     return example
 def add_adversarial_text(example, adversarial_text):
     example['context'] = example['context'] + adversarial_text
     return example
 
-# # Incorrectly Implemented
-# def calc_attack_score(eval_args, dataset, string):
-#     eval_kwargs, model, training_args, train_dataset_featurized, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset, trainer_class= eval_args[0], eval_args[1], eval_args[2], eval_args[3], eval_args[4], eval_args[5], eval_args[6], eval_args[7]
-#     # run model against subset of eval examples
-#     # return score as a function of (or copy of) exact match or avg f1 score
-#     t1 = time.time()
-#     modified_dataset = dataset.map(add_adversarial_text, fn_kwargs={"adversarial_text": string})
-    # eval_kwargs = {} 
-#     eval_kwargs['eval_examples'] = modified_dataset
-#     t2=time.time()
-#     print("Mapping modify time %d", t2-t1)
-#     modified_eval_dataset_featurized = modified_dataset.map(
-#             prepare_eval_dataset,
-#             batched=True,
-#             num_proc=NUM_PREPROCESSING_WORKERS,
-#             remove_columns=modified_dataset.column_names
-#         ) 
-#     t3 = time.time()
-#     print("Map featurize time %d", t3-t2)
-#     trainer = trainer_class(
-#     model= model,
-#     args=training_args,
-#     train_dataset=train_dataset_featurized,
-#     eval_dataset=modified_eval_dataset_featurized,
-#     tokenizer=tokenizer,
-#     compute_metrics=compute_metrics_and_store_predictions
-#     ) 
-#     # NOTE: train_dataset_featurized is None  while it probably should not be
-#     # # TODO check parameters like if args is training_args
-#         #TODO check if train_dataset_featurized needs to be sampled as well
-#     t4 = time.time()
-#     print("Trainer create time %d", t4-t3)
-#     results = trainer.evaluate(**eval_kwargs)
-#     t5 = time.time()
-#     print("Evaluation time %d", t5-t4)
-#     print('Evaluation results:')
-#     print(results)
-
-#     return results['eval_f1'] # TODO replace with cross entropy loss suket
-
-# def generate_adv_examples(eval_args, dataset, desired_string_size, adv_vocab, beam_size):
-#     # scenarios = [[x] for x in adv_vocab]
-#     # scenarios starts for first itr starts out as size of adv_vocab, but every other iteration is size of beam
-#     scenarios = [("",0)] # for x in adv_vocab
-#     # add string to each item in scenarios
-#     for i in range(desired_string_size):
-#         new_scenarios = [] # contains (adv_text, attack_score) pairs
-#         for potential_word in adv_vocab:
-#             for scenario in scenarios:
-#                 # initial condition
-#                 if scenario == "":
-#                     adv_text = potential_word
-#                 else:
-#                     adv_text = scenario[0] + " "+ potential_word
-#                 attack_score = calc_attack_score(eval_args, dataset, adv_text)
-#                 new_scenarios.append((adv_text, attack_score))
-#         scenarios = sorted(new_scenarios, key = lambda x: x[1])
-#         if len(scenarios)>beam_size:
-#             scenarios = scenarios[0:beam_size] # check if need reverse=True
-#         write_adv_text(scenarios)
-#     return scenarios
-
-# def add_adv_text_per_question(example, dictionary_mapping_example_to_index):
-#     question = example["question"]
-#     value = dictionary_mapping_example_to_index[question]
-#     example["context"] = example["context"] + str(value) 
-#     return example
-
 def main():
-
-    # while True:
-    #     i = i+1
     argp = HfArgumentParser(TrainingArguments)
     # argp.add_argument('-f')
     # The HfArgumentParser object collects command-line arguments into an object (and provides default values for unspecified arguments).
@@ -344,27 +227,9 @@ def main():
             num_proc=NUM_PREPROCESSING_WORKERS,
             remove_columns=train_dataset.column_names
         )
-    # if args.use_subset_train_examples:
-    #     train_dataset = train_dataset.select(range(100)) # TODO delete or use elsewhere
+
     if training_args.do_eval:
         eval_dataset = dataset[eval_split]
-        # dataset_to_dictionary =  {}
-        # for itr, example in enumerate(eval_dataset):
-        #     dataset_to_dictionary[example['question']] = itr
-        # key_0=eval_dataset[0]['question']
-        # key_1 = eval_dataset[1]['question']
-        # dataset_to_dictionary[key_0] = "Nazzis kill peoople"
-        # dataset_to_dictionary[key_1] = "Chinese communists"
-        # example 0 corresponds to Nazzis kill peoople and
-        # example 1 corresponds: Chine communists
-        # eval_dataset_with_adversarial_examples = eval_dataset.map(add_adv_text_per_question, fn_kwargs={"dictionary_mapping_example_to_index": dataset_to_dictionary})
-        # only_diff_contexts = []
-        # seen_contexts = set()
-        # for example in  eval_dataset:
-        #     if example['context'] in seen_contexts:
-        #         continue
-        #     only_diff_contexts.append(example)
-        #     seen_contexts.add(example['context'])
 
         if args.max_eval_samples:
             eval_dataset = eval_dataset.select(range(args.max_eval_samples)) 
@@ -374,6 +239,7 @@ def main():
             num_proc=NUM_PREPROCESSING_WORKERS,
             remove_columns=eval_dataset.column_names
         )  
+        
     # Select the training configuration
     trainer_class = Trainer
     # eval_kwargs = {}
@@ -415,15 +281,15 @@ def main():
                 eval_dataset = total_dataset # TODO 12-4-21: instead of entire range, pick indices better
                 eval_dataset = eval_dataset.shuffle(seed=42)
             
-            common_words_small = get_common_words("common_words.txt")
-            common_words_large = get_common_words("1000_common_words.txt")
+            common_words_small = get_common_words("vocabulary_sets/common_words.txt")
+            common_words_large = get_common_words("vocabulary_sets/1000_common_words.txt")
             charged_words = get_charged_words(500)
             
             more_words = ["certainly", "maybe", "probably", "everything", "due", "reason", "consequently"]
             # We want all common_words_small, and a mix of common_words_large and charged_words
             charged_words_sampled = random.sample(charged_words, int(adv_dict_size/4))
             common_words_sampled= random.sample(common_words_large, int(adv_dict_size/2))
-            where_and_when = get_common_words("where_and_when.txt")
+            where_and_when = get_common_words("vocabulary_sets/where_and_when.txt")
             if only_use_common_words_small:
                 adversarial_words = list(set(common_words_small))
             else:
@@ -439,7 +305,6 @@ def main():
     elif args.task == 'nli':
         compute_metrics = compute_accuracy
     
-
     # This function wraps the compute_metrics function, storing the model's predictions
     # so that they can be dumped along with the computed metrics
     eval_predictions = None
@@ -447,8 +312,6 @@ def main():
         nonlocal eval_predictions
         eval_predictions = eval_preds
         return compute_metrics(eval_preds)
-
-    # # Initialize the Trainer object with the specified arguments and the model and dataset we loaded above
 
     # Train and/or evaluate
     if training_args.do_train:
@@ -479,53 +342,10 @@ def main():
             # TODO: be more clever about which eval examples and questions to use: perhaps use filter method or something else
             trainer_args = [trainer_class, model, training_args, train_dataset_featurized, eval_dataset, tokenizer, compute_metrics_and_store_predictions, prepare_eval_dataset]
             parameters_string = ["eval_subset_size: " + str(eval_subset_size) + ", adv_dict_size: " + str(adv_dict_size) + ", filter_questions_based_on_acceptable_question_types:" + str(filter_questions_based_on_acceptable_question_types) + ", acceptable_question_types: " + str(acceptable_question_types)]
-            write_adv_text(parameters_string, "beam_best.txt")
-            write_adv_text(parameters_string, "all_words.txt")
+            write_adv_text(parameters_string, "generated_triggers/beam_best.txt")
+            write_adv_text(parameters_string, "generated_triggers/all_words.txt")
             generate_universal_triggers(universal_trigger_len, adversarial_words, beam_size, trainer_args)
             
-            # generate_universal_triggers(universal_trigger_len, all_possible_words, eval_dataset, beam_size, eval_args)
-            # adv_examples = generate_adv_examples(eval_args, eval_dataset, 12, adversarial_words, beam_size)
-            # write_adv_text(adv_examples)
-        # else:
-        #     results = trainer.evaluate(**eval_kwargs)
-
-        # To add custom metrics, you should replace the "compute_metrics" function (see comments above).
-        #
-        # If you want to change how predictions are computed, you should subclass Trainer and override the "prediction_step"
-        # method (see https://huggingface.co/transformers/_modules/transformers/trainer.html#Trainer.prediction_step).
-        # If you do this your custom prediction_step should probably start by calling super().prediction_step and modifying the
-        # values that it returns.
-
-        # print('Evaluation results:')
-        # print(results)
-
-        # os.makedirs(training_args.output_dir, exist_ok=True)
-
-        # with open(os.path.join(training_args.output_dir, 'eval_metrics.json'), encoding='utf-8', mode='w') as f:
-        #     json.dump(results, f)
-
-        # with open(os.path.join(training_args.output_dir, 'eval_predictions.jsonl'), encoding='utf-8', mode='w') as f:
-        #     if args.task == 'qa':
-        #         predictions_by_id = {pred['id']: pred['prediction_text'] for pred in eval_predictions.predictions}
-        #         for example in eval_dataset:
-        #             example_with_prediction = dict(example)
-        #             example_with_prediction['predicted_answer'] = predictions_by_id[example['id']]
-        #             f.write(json.dumps(example_with_prediction))
-        #             f.write('\n')
-        #     else:
-        #         for i, example in enumerate(eval_dataset):
-        #             example_with_prediction = dict(example)
-        #             example_with_prediction['predicted_scores'] = eval_predictions.predictions[i].tolist()
-        #             example_with_prediction['predicted_label'] = int(eval_predictions.predictions[i].argmax())
-        #             f.write(json.dumps(example_with_prediction))
-        #             f.write('\n')
-
-
 if __name__ == "__main__":
-    # examples_fake_var = None
-    # generate_universal_triggers(4, ["why", "how", "when", "who", "because"], examples_fake_var, 3)
     main()
 
-def add_context(example, context_to_add):
-    example['sentence1'] = 'My sentence: ' + example['sentence1']
-    return example
